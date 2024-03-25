@@ -28,7 +28,7 @@ for csv_file in csv_files:
         # Get base trial name
         trial_name = data_path + csv_file[:-8] #'IMU_Segment_pos_xyz'
 
-        # Get quaternion .csv 
+        # Get joint position data
         # Load in tracked joint data from 3D pose and pass to array (XYZ)   
         data_xyz = pd.read_csv(trial_name + '_pos.csv')
         data_xyz = data_xyz.drop(columns='Frame')
@@ -90,6 +90,7 @@ for csv_file in csv_files:
             # Loop through and transform to pelvis ref system
             pos_midShld_inPelvis = np.zeros([n_frames, 3])
             for i_frame in range(n_frames):
+                # Get rotation matrix at each frame
                 rm_pelvis = R.from_quat([ori_q1[i_frame, idx_pelvis], ori_q2[i_frame, idx_pelvis], ori_q3[i_frame, idx_pelvis], ori_q0[i_frame, idx_pelvis]])
                 rmi_pelvis = rm_pelvis.inv()
                 rmi_pelvis.as_matrix()
@@ -99,7 +100,7 @@ for csv_file in csv_files:
         n_frames, n_cols = np.shape(pose_xyz)
         frames_v = range(n_frames)
         
-
+        # Plot in transverse plave vs frames
         plt.figure()
         if flag_midShldrPevlis == True:
             # plt.plot(frames_v, pos_midShld_inPelvis)
@@ -111,6 +112,17 @@ for csv_file in csv_files:
         plt.ylabel('Lateral displacement (mm)') 
         plt.title(csv_file[0:-12])       
         plt.savefig(data_path + 'Figures/d_MSPinP_' + csv_file[0:-12] + '.png')
+        plt.close()
+
+        # Plot sagittal and coronal against frames
+        plt.figure()
+        plt.plot(frames_v[:], pos_midShld_inPelvis[:,0], c='r')
+        plt.plot(frames_v[:], pos_midShld_inPelvis[:,1], c='b')
+        plt.ylim(-100, 100)
+        plt.xlabel('Frame Number')
+        plt.ylabel('Mid-Shoulder Position in Pelvis Reference System') 
+        plt.legend(['Red - Sagittal (A/P)', 'Blue - Coronal (L/R)'], loc='upper right')
+        plt.savefig(data_path + 'Figures/d_MSPinP_sep_' + csv_file[0:-12] + '.png')
         plt.close()
 
         print(data_path + 'Figures/d_MSPinP_' + csv_file[0:-12] + '.png saved')
