@@ -33,10 +33,10 @@ for csv_file in csv_files:
         data_xyz = pd.read_csv(trial_name + '_pos.csv')
         data_xyz = data_xyz.drop(columns='Frame')
 
-        # Get indeces of Pelvis and L/R Shoulders
-        idx_pelvis = int(data_xyz.columns.get_loc('Pelvis x')/3)
-        idx_shld_r = int(data_xyz.columns.get_loc('Right Shoulder x')/3)
-        idx_shld_l = int(data_xyz.columns.get_loc('Left Shoulder x')/3)
+        # Get indeces of Pelvis and L/R Shoulders (Upper Arm segment) for position
+        idx_pelvis_p = int(data_xyz.columns.get_loc('Pelvis x'))
+        idx_shld_r_p = int(data_xyz.columns.get_loc('Right Upper Arm x'))
+        idx_shld_l_p = int(data_xyz.columns.get_loc('Left Upper Arm x')) 
 
         # TO np.array and into mm
         pose_xyz = np.array(data_xyz, dtype='float')*1000
@@ -52,9 +52,7 @@ for csv_file in csv_files:
         data_q0123 = data_q0123.drop(columns='Frame')      
 
         # Get indeces of Pelvis and L/R Shoulders
-        idx_pelvis_q = int(data_q0123.columns.get_loc('Pelvis q0')/4)
-        idx_shld_r_q = int(data_q0123.columns.get_loc('Right Shoulder q0')/4)
-        idx_shld_l_q = int(data_q0123.columns.get_loc('Left Shoulder q0')/4)
+        idx_pelvis_q = int(data_q0123.columns.get_loc('Pelvis q0'))
 
         # To np.array quaternion
         ori_quat = np.array(data_q0123, dtype='float')
@@ -79,9 +77,9 @@ for csv_file in csv_files:
         # Calculate delta(mid shoulder, pelvis)
         if flag_midShldrPevlis == True:
             # ! should find better way of indexing data with header info from .mvn
-            pos_pelvis = np.transpose(np.array([pose_x[:,idx_pelvis], pose_y[:,idx_pelvis], pose_z[:,idx_pelvis]]))
-            pos_shldr_r = [pose_x[:,idx_shld_r], pose_y[:,idx_shld_r], pose_z[:,idx_shld_r]]
-            pos_shldr_l = [pose_x[:,idx_shld_l], pose_y[:,idx_shld_l], pose_z[:,idx_shld_l]]
+            pos_pelvis = np.transpose(np.array([pose_x[:,idx_pelvis_p], pose_y[:,idx_pelvis_p], pose_z[:,idx_pelvis_p]]))
+            pos_shldr_r = [pose_x[:,idx_shld_r_p], pose_y[:,idx_shld_r_p], pose_z[:,idx_shld_r_p]]
+            pos_shldr_l = [pose_x[:,idx_shld_l_p], pose_y[:,idx_shld_l_p], pose_z[:,idx_shld_l_p]]
             # Calculate mid shoulders (in global frame)
             pos_midShldr = np.transpose(np.mean(np.array([pos_shldr_r, pos_shldr_l]), axis=0))
             # Calculate mid shoulder to pelvis (in global frame)
@@ -91,7 +89,7 @@ for csv_file in csv_files:
             pos_midShld_inPelvis = np.zeros([n_frames, 3])
             for i_frame in range(n_frames):
                 # Get rotation matrix at each frame
-                rm_pelvis = R.from_quat([ori_q1[i_frame, idx_pelvis], ori_q2[i_frame, idx_pelvis], ori_q3[i_frame, idx_pelvis], ori_q0[i_frame, idx_pelvis]])
+                rm_pelvis = R.from_quat([ori_q1[i_frame, idx_pelvis_q], ori_q2[i_frame, idx_pelvis_q], ori_q3[i_frame, idx_pelvis_q], ori_q0[i_frame, idx_pelvis_q]])
                 rmi_pelvis = rm_pelvis.inv()
                 rmi_pelvis.as_matrix()
                 pos_midShld_inPelvis[i_frame,:] = rmi_pelvis.apply(d_midShldrPel[i_frame,:])
