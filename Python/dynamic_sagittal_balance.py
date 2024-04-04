@@ -97,30 +97,40 @@ for csv_file in csv_files:
 
         n_frames, n_cols = np.shape(pose_xyz)
         frames_v = range(n_frames)
-        
+        plot_to = 450
+
         # Plot in transverse plave vs frames
         plt.figure()
-        if flag_midShldrPevlis == True:
-            # plt.plot(frames_v, pos_midShld_inPelvis)
-            plt.scatter(pos_midShld_inPelvis[:,0], pos_midShld_inPelvis[:,1], c=frames_v[:], cmap='jet')
-            plt.colorbar()
+        plt.scatter(pos_midShld_inPelvis[0:plot_to,0], pos_midShld_inPelvis[0:plot_to,1], c=frames_v[0:plot_to], cmap='jet')
+        clb = plt.colorbar()
+        clb.ax.set_title('Frames')
+        plt.grid()
         plt.xlim(-150, 150)
         plt.ylim(-150, 150)
-        plt.xlabel('Anterior displacement (mm)')
-        plt.ylabel('Lateral displacement (mm)') 
+        plt.xlabel('Anterior(+) / Posterior (-) displacement (mm)')
+        plt.ylabel('Left (+) / Right (-) displacement (mm)') 
         plt.title(csv_file[0:-12])       
         plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP.png')
         plt.close()
 
         # Plot sagittal and coronal against frames
         plt.figure()
-        plt.plot(frames_v[:], pos_midShld_inPelvis[:,0], c='r')
-        plt.plot(frames_v[:], pos_midShld_inPelvis[:,1], c='b')
+        plt.plot(frames_v[0:plot_to], pos_midShld_inPelvis[0:plot_to,0], c='r')
+        plt.plot(frames_v[0:plot_to], pos_midShld_inPelvis[0:plot_to,1], c='b')
         plt.ylim(-100, 100)
         plt.xlabel('Frame Number')
         plt.ylabel('Mid-Shoulder Position in Pelvis Reference System') 
         plt.legend(['Red - Sagittal (A/P)', 'Blue - Coronal (L/R)'], loc='upper right')
         plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP_sep.png')
+        plt.close()
+
+        # Plot quiver plot
+        plt.figure()
+        plt.plot(pos_pelvis[0:plot_to,0], pos_pelvis[0:plot_to,1])
+        plt.quiver(pos_pelvis[0:plot_to,0], pos_pelvis[0:plot_to,1], d_midShldrPel[0:plot_to,0], d_midShldrPel[0:plot_to,1], angles='xy', scale_units='xy', scale=0.5, headwidth=0, headlength=0, headaxislength=0)
+        plt.xlabel('Anterior displacement (mm)')
+        plt.ylabel('Lateral displacement (mm)') 
+        plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP_sway.png')
         plt.close()
 
         print(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP.png saved')
