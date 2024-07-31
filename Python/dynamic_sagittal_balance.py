@@ -1,4 +1,6 @@
 from scipy.spatial.transform import Rotation as R
+from scipy import signal
+from scipy.ndimage import gaussian_filter1d
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -14,8 +16,13 @@ flag_seperateXYZ    = False
 flag_makeGIF        = False
 flag_neckPevlis     = True
 
+# Filtering            
+f_order = 14#2
+f_cutoff = 8#0.25
+f_sampling = 60
+f_nyquist = f_cutoff/(f_sampling/2)
+b, a = signal.butter(f_order, f_nyquist, btype='lowpass')
 
-f_cap = 60
 # This is a script to develop metrics to estimate dynamic saggital balance (DSB) of patients with markerless mocap methods
 
 # Where to read data from
@@ -25,8 +32,8 @@ data_path = '../In/Box_data/'
 csv_files = glob.glob(data_path + '*pos.csv')
 
 # params = np.zeros([len(csv_files),16])
-params = pd.DataFrame(columns=['Patient_ID','BLN_Dx', 'BLN_Dy', 'BLN_X_c', 'BLN_Y_c', 'BLN_semi_major', 'BLN_semi_minor','BLN_ecc', 'BLN_X_rot', \
-                                '6WK_Dx', '6WK_Dy', '6WK_X_c', '6WK_Y_c', '6WK_semi_major', '6WK_semi_minor', '6WK_ecc', '6WK_X_rot'])
+params = pd.DataFrame(columns=['Patient_ID','BLN_Dx', 'BLN_Dy', 'BLN_X_c', 'BLN_Y_c', 'BLN_semi_major', 'BLN_semi_minor','BLN_ecc', 'BLN_X_rot', 'BLN_area', \
+                                '6WK_Dx', '6WK_Dy', '6WK_X_c', '6WK_Y_c', '6WK_semi_major', '6WK_semi_minor', '6WK_ecc', '6WK_X_rot', '6WK_area'])
 
 for i_csv in range(len(csv_files)):
 
@@ -40,6 +47,14 @@ for i_csv in range(len(csv_files)):
     # Load in tracked joint data from 3D pose and pass to array (XYZ)   
     data_xyz = pd.read_csv(trial_name + '_pos.csv')
     data_xyz = data_xyz.drop(columns='Frame')
+    # Load in tracked 3D IMU Orientation and pass to array (quaternions)    
+    data_q0123 = pd.read_csv(trial_name + '_qua.csv')  
+    data_q0123 = data_q0123.drop(columns='Frame')
+    # Load in tracked 3D IMU Free Accelerations and pass to array (quaternions)    
+    data_acc = pd.read_csv(trial_name + '_acc.csv')  
+    data_acc = data_acc.drop(columns='Frame')
+
+    ## Get position info
 
     # Get indeces of Pelvis and L/R Shoulders (Upper Arm segment) for position. Divide by three for split data
     idx_pelvis_p = int(data_xyz.columns.get_loc('Pelvis x')/3)
@@ -49,7 +64,7 @@ for i_csv in range(len(csv_files)):
     idx_foot_r_p = int(data_xyz.columns.get_loc('Right Foot x')/3)
     idx_foot_l_p = int(data_xyz.columns.get_loc('Left Foot x')/3)
 
-    # TO np.array and into mm
+    # To np.array and into mm
     pose_xyz = np.array(data_xyz, dtype='float')*1000
 
     # split data into X, Y, Z
@@ -57,36 +72,50 @@ for i_csv in range(len(csv_files)):
     pose_y = pose_xyz[:,1::3]
     pose_z = pose_xyz[:,2::3]
         
-    # Get quaternion .csv     
-    # Load in tracked 3D orientation and pass to array (quaternions)    
-    data_q0123 = pd.read_csv(trial_name + '_qua.csv')  
-    data_q0123 = data_q0123.drop(columns='Frame')      
+    ## Get quaternion info
 
-    # Get indeces of Pelvis and L/R Shoulders. Divide by 4 for split data
+    # Get indeces of Pelvis.
     idx_pelvis_q = int(data_q0123.columns.get_loc('Pelvis q0')/4)
 
     # To np.array quaternion
     ori_quat = np.array(data_q0123, dtype='float')
 
     # split data into q0, q1, q2, q3
-    # MVN uses Scalar First for quaternion and SciPy uses Scalar Last for quaternion
+    # MVN uses Scalar First for quaternion and SciPy uses Scalar Last for quaternion. Divide by 4 for split data
     ori_q0 = ori_quat[:,0::4]                       
     ori_q1 = ori_quat[:,1::4] 
     ori_q2 = ori_quat[:,2::4]
     ori_q3 = ori_quat[:,3::4]
 
+    ## Get Accelaration data
+
+    # Get indeces of L/R Foot.
+    idx_footR_acc = int(data_acc.columns.get_loc('Right Foot x'))
+    idx_footL_acc = int(data_acc.columns.get_loc('Left Foot x'))
+
+    # To np.array
+    acc = np.array(data_acc, dtype='float')
+
+    # Split to x, y, z
+    acc_x = signal.filtfilt(b,a,acc[:,0::3], axis=0)
+    acc_y = signal.filtfilt(b,a,acc[:,1::3], axis=0)
+    acc_z = signal.filtfilt(b,a,acc[:,2::3], axis=0)
+
+    # Calculate Jerk norm
+    j_footR = np.sqrt((np.diff(acc_x[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_y[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_z[:,idx_footR_acc//3])*f_sampling)**2)
+
     # Check both position and quat have the same frames        
     n_frames_pos, n_cols_pos = np.shape(data_xyz)
     n_frames_quat, n_cols_quat = np.shape(data_q0123)
+    n_frames_acc, n_cols_acc = np.shape(data_acc)
 
-    if n_frames_pos == n_frames_quat:
+    if n_frames_pos == n_frames_quat and n_frames_pos == n_frames_acc:
         n_frames = n_frames_pos
     else:
-        n_frames = np.min([n_frames_pos, n_frames_quat])
+        n_frames = np.min([n_frames_pos, n_frames_quat, n_frames_acc])
 
-    frame_cutoff = int(n_frames/3)
-    
-    # Calculate delta(mid shoulder, pelvis)
+   
+    ## Calculate delta(mid shoulder, pelvis)
     if flag_neckPevlis == True:
         # ! should find better way of indexing data with header info from .mvn
         pos_pelvis = np.transpose(np.array([pose_x[:,idx_pelvis_p], pose_y[:,idx_pelvis_p], pose_z[:,idx_pelvis_p]]))
@@ -98,6 +127,7 @@ for i_csv in range(len(csv_files)):
         # Calculate mid shoulder to pelvis (in global frame)
         d_neckPelvis = pos_neck - pos_pelvis
 
+        v_angle = np.zeros([n_frames,1])
         # Loop through and transform to pelvis ref system
         pos_neck_inPelvis = np.zeros([n_frames, 3])
         for i_frame in range(n_frames):
@@ -106,6 +136,30 @@ for i_csv in range(len(csv_files)):
             rmi_pelvis = rm_pelvis.inv()
             rmi_pelvis.as_matrix()
             pos_neck_inPelvis[i_frame,:] = rmi_pelvis.apply(d_neckPelvis[i_frame,:])
+            v_angle[i_frame] = np.linalg.norm(rmi_pelvis.as_rotvec(degrees=True))
+
+    v_angle_filt = signal.filtfilt(b,a,v_angle,0)
+
+    if v_angle_filt[0]>75:
+        v_angle_filt = -v_angle_filt
+
+    # v_angle_filt = gaussian_filter1d(v_angle,10)
+    v_angle_d1 = np.diff(v_angle_filt,1,0)*f_sampling
+    v_angle_d2 = np.diff(v_angle_d1,1,0)*f_sampling
+    frame_cutoff = np.where(v_angle_d1 >15)[0][0]
+
+    # pol = np.polyfit(range(0,n_frames), v_angle_filt,30)
+    # p2 = np.poly1d(np.squeeze(pol))
+
+    # plt.plot(v_angle)
+    plt.plot(v_angle_filt)
+    plt.plot(v_angle_d1)
+    plt.plot((frame_cutoff, frame_cutoff), (100,-30), 'r')
+    plt.title(csv_file[0:-12])       
+    plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + 'cutoff.png')
+    plt.close()
+    # plt.plot(v_angle_d2)
+    
 
     x_min = np.min(pos_neck_inPelvis[:frame_cutoff,0])
     x_max = np.max(pos_neck_inPelvis[:frame_cutoff,0])
@@ -131,20 +185,11 @@ for i_csv in range(len(csv_files)):
         params.loc[rows, 'BLN_semi_minor'] = ellipse_fit_polr[3]
         params.loc[rows, 'BLN_ecc'] = ellipse_fit_polr[4]
         params.loc[rows, 'BLN_X_rot'] = ellipse_fit_polr[5]
-        
-        # params[i_csv, 0] = x_dist
-        # params[i_csv, 1] = y_dist
-        # params[i_csv, 2] = ellipse_fit_polr[0]
-        # params[i_csv, 3] = ellipse_fit_polr[1]
-        # params[i_csv, 4] = ellipse_fit_polr[2]
-        # params[i_csv, 5] = ellipse_fit_polr[3]
-        # params[i_csv, 6] = ellipse_fit_polr[4]
-        # params[i_csv, 7] = ellipse_fit_polr[5]
-
+        params.loc[rows, 'BLN_area'] = np.pi * ellipse_fit_polr[3] * ellipse_fit_polr[2]
+      
     elif csv_file.__contains__('BLN') and id_int in params['Patient_ID'].values:
         idx = params[params['Patient_ID'] == id_int].index
         rows, cols = params.shape
-        # data = [id_int, x_dist, y_dist, ellipse_fit_polr[0], ellipse_fit_polr[1], ellipse_fit_polr[2], ellipse_fit_polr[3], ellipse_fit_polr[4], ellipse_fit_polr[5],[],[],[],[],[],[],[],[]]
         params.loc[idx, 'BLN_Dx'] = x_dist
         params.loc[idx, 'BLN_Dy'] = y_dist
         params.loc[idx, 'BLN_X_c'] = ellipse_fit_polr[0]
@@ -153,10 +198,10 @@ for i_csv in range(len(csv_files)):
         params.loc[idx, 'BLN_semi_minor'] = ellipse_fit_polr[3]
         params.loc[idx, 'BLN_ecc'] = ellipse_fit_polr[4]
         params.loc[idx, 'BLN_X_rot'] = ellipse_fit_polr[5]
+        params.loc[idx, 'BLN_area'] = np.pi * ellipse_fit_polr[3] * ellipse_fit_polr[2]
     
     elif csv_file.__contains__('6WK') and id_int not in params['Patient_ID'].values:
         rows, cols = params.shape
-        # data = [id_int,[],[],[],[],[],[],[],[], x_dist, y_dist, ellipse_fit_polr[0], ellipse_fit_polr[1], ellipse_fit_polr[2], ellipse_fit_polr[3], ellipse_fit_polr[4], ellipse_fit_polr[5]]
         params.loc[rows, 'Patient_ID'] = id_int
         params.loc[rows, '6WK_Dx'] = x_dist
         params.loc[rows, '6WK_Dy'] = y_dist
@@ -166,21 +211,12 @@ for i_csv in range(len(csv_files)):
         params.loc[rows, '6WK_semi_minor'] = ellipse_fit_polr[3]
         params.loc[rows, '6WK_ecc'] = ellipse_fit_polr[4]
         params.loc[rows, '6WK_X_rot'] = ellipse_fit_polr[5]
-        
-        # params[i_csv, 0+8] = x_dist
-        # params[i_csv, 1+8] = y_dist
-        # params[i_csv, 2+8] = ellipse_fit_polr[0]
-        # params[i_csv, 3+8] = ellipse_fit_polr[1]
-        # params[i_csv, 4+8] = ellipse_fit_polr[2]
-        # params[i_csv, 5+8] = ellipse_fit_polr[3]
-        # params[i_csv, 6+8] = ellipse_fit_polr[4]
-        # params[i_csv, 7+8] = ellipse_fit_polr[5]
-
+        params.loc[rows, '6WK_area'] = np.pi * ellipse_fit_polr[3] * ellipse_fit_polr[2]
+       
     # If baseline has already been recorded
     elif csv_file.__contains__('6WK') and id_int in params['Patient_ID'].values:
         idx = params[params['Patient_ID'] == id_int].index
         rows, cols = params.shape
-        # data = [id_int,[],[],[],[],[],[],[],[], x_dist, y_dist, ellipse_fit_polr[0], ellipse_fit_polr[1], ellipse_fit_polr[2], ellipse_fit_polr[3], ellipse_fit_polr[4], ellipse_fit_polr[5]]
         params.loc[idx, '6WK_Dx'] = x_dist
         params.loc[idx, '6WK_Dy'] = y_dist
         params.loc[idx, '6WK_X_c'] = ellipse_fit_polr[0]
@@ -189,6 +225,7 @@ for i_csv in range(len(csv_files)):
         params.loc[idx, '6WK_semi_minor'] = ellipse_fit_polr[3]
         params.loc[idx, '6WK_ecc'] = ellipse_fit_polr[4]
         params.loc[idx, '6WK_X_rot'] = ellipse_fit_polr[5]
+        params.loc[idx, '6WK_area'] = np.pi * ellipse_fit_polr[3] * ellipse_fit_polr[2]
 
     # # Compute Foot Contact
     # pos_foot_r_x = pose_x[:,idx_foot_r_p]
