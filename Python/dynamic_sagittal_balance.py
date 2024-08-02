@@ -175,7 +175,7 @@ for i_csv in range(len(csv_files)):
     for i_stance in range(4):
         rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
         axs[0].add_patch(rect)
-        rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
+        rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 80, facecolor='lightblue', edgecolor='blue', alpha= 1)
         axs[1].add_patch(rect)
 
     # plt.figure()
@@ -187,7 +187,7 @@ for i_csv in range(len(csv_files)):
     axs[1].plot(max_gyr_R, gyr_footR[max_gyr_R],'x')
     axs[1].plot(min_gyr_R, gyr_footR[min_gyr_R],'x')
     for i_stance in range(4):
-        rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
+        rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 800, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
         axs[0].add_patch(rect)
         rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
         axs[1].add_patch(rect)
