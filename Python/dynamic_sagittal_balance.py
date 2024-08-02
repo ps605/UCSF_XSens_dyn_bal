@@ -212,11 +212,8 @@ for i_csv in range(len(csv_files)):
         rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
         axs[1].add_patch(rect)
     axs[0].set_ylabel('Jerk norm (m/s^3)')
-    axs[1].set_ylabel('Gyrarion y-axis -Euler (deg/s)')
+    axs[1].set_ylabel('Gyrarion y-axis - Euler (deg/s)')
     axs[1].set_xlabel('Frame Number')
-  
-  
-
 
     # Check both position and quat have the same frames        
     n_frames_pos, n_cols_pos = np.shape(data_xyz)
@@ -241,6 +238,7 @@ for i_csv in range(len(csv_files)):
         # Calculate mid shoulder to pelvis (in global frame)
         d_neckPelvis = pos_neck - pos_pelvis
 
+        # Get Transformed (?) Pelvis Angle
         v_angle = np.zeros([n_frames,1])
         # Loop through and transform to pelvis ref system
         pos_neck_inPelvis = np.zeros([n_frames, 3])
@@ -257,34 +255,50 @@ for i_csv in range(len(csv_files)):
     if v_angle_filt[0]>75:
         v_angle_filt = -v_angle_filt
 
-    # Identify frame cutoff
+    # Identify 180 deg U-turn
     v_angle_d1 = np.diff(v_angle_filt,1,0)*f_sampling
     v_angle_d2 = np.diff(v_angle_d1,1,0)*f_sampling
-    frame_cutoff = np.where(v_angle_d1 >15)[0][0]
+    idx_turn = np.where(v_angle_d1 >15)[0][0]
+
+    ## Identify Gait events (Heel Strike HS; Toe Off TO)
+    # Find closest previous toe off (gyration min) to turn
+    near_L = np.where((idx_turn - min_gyr_L)>0)[0]
+    near_R = np.where((idx_turn - min_gyr_R)>0)[0]
+
+    HS_L = max_jer_L[near_L]
+    HS_R = max_jer_R[near_R]
+    TO_L = min_gyr_L[near_L]
+    TO_R = min_gyr_R[near_R]
+
+    max_TO_L = np.max(min_gyr_L[near_L])
+    max_TO_R = np.max(min_gyr_R[near_R])
+    max_TO = np.maximum(max_TO_L, max_TO_R)
+
 
     # pol = np.polyfit(range(0,n_frames), v_angle_filt,30)
     # p2 = np.poly1d(np.squeeze(pol))
 
     # plt.plot(v_angle)
+    plt.figure()
     plt.plot(v_angle_filt)
     plt.plot(v_angle_d1)
-    plt.plot((frame_cutoff, frame_cutoff), (100,-30), 'r')
+    plt.plot((max_TO, max_TO), (100,-30), 'r')
     plt.title(csv_file[0:-12])       
     plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + 'cutoff.png')
     plt.close()
     # plt.plot(v_angle_d2)
     
 
-    x_min = np.min(pos_neck_inPelvis[:frame_cutoff,0])
-    x_max = np.max(pos_neck_inPelvis[:frame_cutoff,0])
-    y_min = np.min(pos_neck_inPelvis[:frame_cutoff,1])
-    y_max = np.max(pos_neck_inPelvis[:frame_cutoff,1])
+    x_min = np.min(pos_neck_inPelvis[:max_TO,0])
+    x_max = np.max(pos_neck_inPelvis[:max_TO,0])
+    y_min = np.min(pos_neck_inPelvis[:max_TO,1])
+    y_max = np.max(pos_neck_inPelvis[:max_TO,1])
 
     x_dist = x_max - x_min
     y_dist = y_max - y_min
 
     # Fit Ellipse
-    ellipse_fit_cart = fit_ellipse(pos_neck_inPelvis[0:frame_cutoff,0], pos_neck_inPelvis[0:frame_cutoff,1])
+    ellipse_fit_cart = fit_ellipse(pos_neck_inPelvis[0:max_TO,0], pos_neck_inPelvis[0:max_TO,1])
     ellipse_fit_polr = cart_to_pol(ellipse_fit_cart)
     x_e, y_e = get_ellipse_pts(ellipse_fit_polr)
 
@@ -359,7 +373,7 @@ for i_csv in range(len(csv_files)):
 
     # Plot in transverse plane vs frames
     plt.figure()
-    plt.scatter(pos_neck_inPelvis[0:frame_cutoff,0], pos_neck_inPelvis[0:frame_cutoff,1], c=range(0,frame_cutoff), cmap='jet')
+    plt.scatter(pos_neck_inPelvis[0:max_TO,0], pos_neck_inPelvis[0:max_TO,1], c=range(0,max_TO), cmap='jet')
     plt.plot(x_e, y_e)
     clb = plt.colorbar()
     clb.ax.set_title('Frames')
@@ -384,15 +398,16 @@ for i_csv in range(len(csv_files)):
     # plt.close()
 
     # # Plot quiver plot
-    # plt.figure()
-    # plt.plot(pos_pelvis[0:plot_to,0], pos_pelvis[0:plot_to,1], c='orange')
-    # plt.quiver(pos_pelvis[0:plot_to,0], pos_pelvis[0:plot_to,1], d_neckPelvis[0:plot_to,0], d_neckPelvis[0:plot_to,1], angles='xy', scale_units='xy', scale=0.5, color=quiv_col, headwidth=0, headlength=0, headaxislength=0)
-    # plt.xlabel('Anterior displacement (mm)')
-    # plt.ylabel('Lateral displacement (mm)') 
-    # ax = plt.gca()
-    # ax.set_aspect('equal', adjustable='box')
-    # plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP_sway.png')
-    # plt.close()
+    plt.figure()
+    plt.plot(pos_pelvis[0:max_TO,0], pos_pelvis[0:max_TO,1], c='orange')
+    plt.quiver(pos_pelvis[0:max_TO,0], pos_pelvis[0:max_TO,1], d_neckPelvis[0:max_TO,0], d_neckPelvis[0:max_TO,1],
+                angles='xy', scale_units='xy', scale=0.5, color=quiv_col, headwidth=0, headlength=0, headaxislength=0)
+    plt.xlabel('Anterior displacement (mm)')
+    plt.ylabel('Lateral displacement (mm)') 
+    ax = plt.gca()
+    ax.set_aspect('equal', adjustable='box')
+    plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP_sway.png')
+    plt.close()
 
     print(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP.png saved')
 
