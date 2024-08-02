@@ -144,9 +144,12 @@ for i_csv in range(len(csv_files)):
     gyr_footR = -eul_y[:,idx_footR_eul//3]
     gyr_footL = -eul_y[:,idx_footL_eul//3]
     
-    # Get max
-    max_gyr_R,_ = signal.find_peaks(gyr_footR, distance=70, height=100)
-    max_gyr_L,_ = signal.find_peaks(gyr_footL, distance=70, height=100)
+    # Get max and min
+    max_gyr_R,_ = signal.find_peaks(gyr_footR, distance=70, height=10)
+    max_gyr_L,_ = signal.find_peaks(gyr_footL, distance=70, height=10)
+
+    min_gyr_R,_ = signal.find_peaks(-gyr_footR, distance=70, height=10)
+    min_gyr_L,_ = signal.find_peaks(-gyr_footL, distance=70, height=10)
 
     # Compute Autocorrelation Functions with 600 frame lags (10 seconds)
     acf_jer_R = acf(jer_footR, nlags=600)
@@ -160,11 +163,30 @@ for i_csv in range(len(csv_files)):
     idx_motif = np.argsort(jer_L_mp[:, 0])[0]
     idx_nearN = jer_L_mp[idx_motif,1]
 
-    # Check Plots
+    # Check Plots max jerk and gyration
     plt.figure()
-    plt.plot(jer_footL)
-    plt.plot(max_gyr_L,jer_footL_sm[max_gyr_L],'x')
+    ax = plt.gca()
+    # plt.plot(jer_footL)
+    plt.plot(jer_footL_sm)
+    plt.plot(max_jer_L, jer_footL_sm[max_jer_L],'x')
+    plt.plot(gyr_footL)
+    plt.plot(max_gyr_L, gyr_footL[max_gyr_L],'x')
+    plt.plot(min_gyr_L, gyr_footL[min_gyr_L],'x')
+    for i_stance in range(4):
+        rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
+        ax.add_patch(rect)
 
+    # plt.figure()
+    # ax = plt.gca()
+    # plt.plot(jer_footR)
+    plt.plot(jer_footR_sm)
+    plt.plot(max_jer_R, jer_footR_sm[max_jer_R],'x')
+    plt.plot(gyr_footR)
+    plt.plot(max_gyr_R, gyr_footR[max_gyr_R],'x')
+    plt.plot(min_gyr_R, gyr_footR[min_gyr_R],'x')
+    for i_stance in range(4):
+        rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 800, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
+        ax.add_patch(rect)
 
     fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
     axs[0].plot(jer_footL)
