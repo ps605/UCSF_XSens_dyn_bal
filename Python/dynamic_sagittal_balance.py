@@ -19,10 +19,19 @@ plt.ioff()
 flag_seperateXYZ    = False
 flag_makeGIF        = False
 flag_neckPevlis     = True
+flag_ACFandMP       = False # Compute Autocorreletion and Matrix Profile
 
-# Filtering            
-f_order = 14#2
-f_cutoff = 8#0.25
+# Filtering and Smoothing Parameters
+# For IMU           
+f_order_imu = 14#2
+f_cutoff_imu = 8#0.25
+f_sampling_imu = 60
+f_nyquist_imu = f_cutoff_imu/(f_sampling_imu/2)
+b_imu, a_imu = signal.butter(f_order_imu, f_nyquist_imu, btype='lowpass')
+
+# For HPE           
+f_order = 2
+f_cutoff = 0.25
 f_sampling = 60
 f_nyquist = f_cutoff/(f_sampling/2)
 b, a = signal.butter(f_order, f_nyquist, btype='lowpass')
@@ -48,13 +57,13 @@ params = pd.DataFrame(columns=['Patient_ID','BLN_Dx', 'BLN_Dy', 'BLN_X_c', 'BLN_
 
 for i_csv in range(len(csv_files)):
 
-    # Get base trial name
+    ## --- Get base trial name ---
     csv_path = csv_files.__getitem__(i_csv)    
     csv_file = os.path.basename(csv_path)
     trial_name = data_path + csv_file[:-8] #'IMU_Segment_pos_xyz'
     id_int = int(csv_file[0:3])
 
-    # Get joint position data
+    ## --- Get joint position data ---
     # Load in tracked joint data from 3D pose and pass to array (XYZ)   
     data_xyz = pd.read_csv(trial_name + '_pos.csv')
     data_xyz = data_xyz.drop(columns='Frame')
@@ -68,8 +77,7 @@ for i_csv in range(len(csv_files)):
     data_acc = pd.read_csv(trial_name + '_acc.csv')  
     data_acc = data_acc.drop(columns='Frame')
 
-    ## Get position info
-
+    ## --- Get position info ---
     # Get indeces of Pelvis and L/R Shoulders (Upper Arm segment) for position. Divide by three for split data
     idx_pelvis_p = int(data_xyz.columns.get_loc('Pelvis x')/3)
     idx_shld_r_p = int(data_xyz.columns.get_loc('Right Upper Arm x')/3)
@@ -86,8 +94,7 @@ for i_csv in range(len(csv_files)):
     pose_y = pose_xyz[:,1::3]
     pose_z = pose_xyz[:,2::3]
         
-    ## Get quaternion info
-
+    ## --- Get quaternion info ---
     # Get indeces of Pelvis.
     idx_pelvis_q = int(data_q0123.columns.get_loc('Pelvis q0')/4)
 
@@ -101,7 +108,7 @@ for i_csv in range(len(csv_files)):
     ori_q2 = ori_quat[:,2::4]
     ori_q3 = ori_quat[:,3::4]
 
-    ## Get Euler info
+    ## --- Get Euler info ---
     # Get indeces of L/R Foot.
     idx_footR_eul = int(data_eul.columns.get_loc('Right Foot x'))
     idx_footL_eul = int(data_eul.columns.get_loc('Left Foot x'))
@@ -110,37 +117,11 @@ for i_csv in range(len(csv_files)):
     eul = np.array(data_eul, dtype='float')
 
     # Split to x, y, z and filter
-    eul_x = signal.filtfilt(b,a,eul[:,0::3], axis=0)
-    eul_y = signal.filtfilt(b,a,eul[:,1::3], axis=0)
-    eul_z = signal.filtfilt(b,a,eul[:,2::3], axis=0)
+    eul_x = signal.filtfilt(b_imu,a_imu,eul[:,0::3], axis=0)
+    eul_y = signal.filtfilt(b_imu,a_imu,eul[:,1::3], axis=0)
+    eul_z = signal.filtfilt(b_imu,a_imu,eul[:,2::3], axis=0)
 
-    ## Get Accelaration data
-
-    # Get indeces of L/R Foot.
-    idx_footR_acc = int(data_acc.columns.get_loc('Right Foot x'))
-    idx_footL_acc = int(data_acc.columns.get_loc('Left Foot x'))
-
-    # To np.array
-    acc = np.array(data_acc, dtype='float')
-
-    # Split to x, y, z and filter
-    acc_x = signal.filtfilt(b,a,acc[:,0::3], axis=0)
-    acc_y = signal.filtfilt(b,a,acc[:,1::3], axis=0)
-    acc_z = signal.filtfilt(b,a,acc[:,2::3], axis=0)
-
-    # Calculate Jerk norm
-    jer_footR = np.sqrt((np.diff(acc_x[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_y[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_z[:,idx_footR_acc//3])*f_sampling)**2)
-    jer_footL = np.sqrt((np.diff(acc_x[:,idx_footL_acc//3])*f_sampling)**2 + (np.diff(acc_y[:,idx_footL_acc//3])*f_sampling)**2 + (np.diff(acc_z[:,idx_footL_acc//3])*f_sampling)**2)
-    
-    # Smoothing
-    jer_footR_sm = signal.filtfilt(b_sm, a_sm, jer_footR)
-    jer_footL_sm = signal.filtfilt(b_sm, a_sm, jer_footL)
-
-    # Get max
-    max_jer_R,_ = signal.find_peaks(jer_footR_sm, distance=70, height=100)
-    max_jer_L,_ = signal.find_peaks(jer_footL_sm, distance=70, height=100)
-
-    # Get gyration and invert
+    # Get gyration and negate (literature uses the negative gyration about y-axis)
     gyr_footR = -eul_y[:,idx_footR_eul//3]
     gyr_footL = -eul_y[:,idx_footL_eul//3]
     
@@ -151,65 +132,91 @@ for i_csv in range(len(csv_files)):
     min_gyr_R,_ = signal.find_peaks(-gyr_footR, distance=70, height=10)
     min_gyr_L,_ = signal.find_peaks(-gyr_footL, distance=70, height=10)
 
-    # Compute Autocorrelation Functions with 600 frame lags (10 seconds)
-    acf_jer_R = acf(jer_footR, nlags=600)
-    acf_jer_L = acf(jer_footL, nlags=600)
-    acf_gyr_R = acf(gyr_footR, nlags=600)
-    acf_gyr_L = acf(gyr_footL, nlags=600)
+    ## --- Get Accelaration data ---
+    # Get indeces of L/R Foot.
+    idx_footR_acc = int(data_acc.columns.get_loc('Right Foot x'))
+    idx_footL_acc = int(data_acc.columns.get_loc('Left Foot x'))
 
-    # Matrix Profile
-    window = 100
-    jer_L_mp = sp.stump(jer_footL, window)
-    idx_motif = np.argsort(jer_L_mp[:, 0])[0]
-    idx_nearN = jer_L_mp[idx_motif,1]
+    # To np.array
+    acc = np.array(data_acc, dtype='float')
 
+    # Split to x, y, z and filter
+    acc_x = signal.filtfilt(b_imu,a_imu,acc[:,0::3], axis=0)
+    acc_y = signal.filtfilt(b_imu,a_imu,acc[:,1::3], axis=0)
+    acc_z = signal.filtfilt(b_imu,a_imu,acc[:,2::3], axis=0)
+
+    # Calculate Jerk norm
+    jer_footR = np.sqrt((np.diff(acc_x[:,idx_footR_acc//3])*f_sampling_imu)**2 + (np.diff(acc_y[:,idx_footR_acc//3])*f_sampling_imu)**2 + (np.diff(acc_z[:,idx_footR_acc//3])*f_sampling_imu)**2)
+    jer_footL = np.sqrt((np.diff(acc_x[:,idx_footL_acc//3])*f_sampling_imu)**2 + (np.diff(acc_y[:,idx_footL_acc//3])*f_sampling_imu)**2 + (np.diff(acc_z[:,idx_footL_acc//3])*f_sampling_imu)**2)
+    
+    # Smoothing
+    jer_footR_sm = signal.filtfilt(b_sm, a_sm, jer_footR)
+    jer_footL_sm = signal.filtfilt(b_sm, a_sm, jer_footL)
+
+    # Get max
+    max_jer_R,_ = signal.find_peaks(jer_footR_sm, distance=70, height=100)
+    max_jer_L,_ = signal.find_peaks(jer_footL_sm, distance=70, height=100)
+
+    ## --- Compute signal analysis ---
+    if flag_ACFandMP:
+        # Compute Autocorrelation Functions with 600 frame lags (10 seconds)
+        acf_jer_R = acf(jer_footR, nlags=600)
+        acf_jer_L = acf(jer_footL, nlags=600)
+        acf_gyr_R = acf(gyr_footR, nlags=600)
+        acf_gyr_L = acf(gyr_footL, nlags=600)
+
+        # Matrix Profile
+        window = 100
+        jer_L_mp = sp.stump(jer_footL, window)
+        idx_motif = np.argsort(jer_L_mp[:, 0])[0]
+        idx_nearN = jer_L_mp[idx_motif,1]
+
+        fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
+        axs[0].plot(jer_footL)
+        axs[1].plot(jer_L_mp[:,0])
+        axs[0].axvline(x=idx_motif, linestyle='dashed', color='r')
+        axs[0].axvline(x=idx_nearN, linestyle='dashed', color='g')
+        rect = Rectangle((idx_motif, 0), window, 800, facecolor='lightgrey')
+        axs[0].add_patch(rect)
+        axs[1].axvline(x=idx_motif, linestyle='dashed', color='r')
+        axs[1].axvline(x=idx_nearN, linestyle='dashed', color='g')
+        rect = Rectangle((idx_nearN, 0), window, 800, facecolor='lightgrey')
+        axs[0].add_patch(rect)
+
+        plt.figure()
+        plt.plot(acf_jer_L)
+        plt.plot(acf_jer_R)
+        plt.figure()
+        plt.plot(acf_gyr_L)
+        plt.plot(acf_gyr_R)
+   
     # Check Plots max jerk and gyration
     fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
-    # ax = plt.gca()
-    # plt.plot(jer_footL)
     axs[0].plot(jer_footL_sm, color='blue')
-    axs[0].plot(max_jer_L, jer_footL_sm[max_jer_L],'x')
-    axs[1].plot(gyr_footL, color='blue', linestyle='--')
-    axs[1].plot(max_gyr_L, gyr_footL[max_gyr_L],'x')
-    axs[1].plot(min_gyr_L, gyr_footL[min_gyr_L],'x')
+    axs[0].plot(max_jer_L, jer_footL_sm[max_jer_L],'o', color='blue')   
+    axs[1].plot(gyr_footL, color='blue', linestyle='-')
+    axs[1].plot(min_gyr_L, gyr_footL[min_gyr_L],'x', color='blue')
     for i_stance in range(4):
         rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
         axs[0].add_patch(rect)
         rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 80, facecolor='lightblue', edgecolor='blue', alpha= 1)
         axs[1].add_patch(rect)
 
-    # plt.figure()
-    # ax = plt.gca()
-    # plt.plot(jer_footR)
     axs[0].plot(jer_footR_sm, color='green')
-    axs[0].plot(max_jer_R, jer_footR_sm[max_jer_R],'x')
-    axs[1].plot(gyr_footR, color='green', linestyle='--')
-    axs[1].plot(max_gyr_R, gyr_footR[max_gyr_R],'x')
-    axs[1].plot(min_gyr_R, gyr_footR[min_gyr_R],'x')
+    axs[0].plot(max_jer_R, jer_footR_sm[max_jer_R],'o', color='green')
+    axs[1].plot(gyr_footR, color='green', linestyle='-')
+    axs[1].plot(min_gyr_R, gyr_footR[min_gyr_R],'x', color='green')
     for i_stance in range(4):
         rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 800, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
         axs[0].add_patch(rect)
         rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
         axs[1].add_patch(rect)
+    axs[0].set_ylabel('Jerk norm (m/s^3)')
+    axs[1].set_ylabel('Gyrarion y-axis -Euler (deg/s)')
+    axs[1].set_xlabel('Frame Number')
+  
+  
 
-    fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
-    axs[0].plot(jer_footL)
-    axs[1].plot(jer_L_mp[:,0])
-    axs[0].axvline(x=idx_motif, linestyle='dashed', color='r')
-    axs[0].axvline(x=idx_nearN, linestyle='dashed', color='g')
-    rect = Rectangle((idx_motif, 0), window, 800, facecolor='lightgrey')
-    axs[0].add_patch(rect)
-    axs[1].axvline(x=idx_motif, linestyle='dashed', color='r')
-    axs[1].axvline(x=idx_nearN, linestyle='dashed', color='g')
-    rect = Rectangle((idx_nearN, 0), window, 800, facecolor='lightgrey')
-    axs[0].add_patch(rect)
-
-    plt.figure()
-    plt.plot(acf_jer_L)
-    plt.plot(acf_jer_R)
-    plt.figure()
-    plt.plot(acf_gyr_L)
-    plt.plot(acf_gyr_R)
 
     # Check both position and quat have the same frames        
     n_frames_pos, n_cols_pos = np.shape(data_xyz)
@@ -222,7 +229,7 @@ for i_csv in range(len(csv_files)):
         n_frames = np.min([n_frames_pos, n_frames_quat, n_frames_acc])
 
    
-    ## Calculate delta(mid shoulder, pelvis)
+    ## --- Calculate delta(mid shoulder, pelvis) ---
     if flag_neckPevlis == True:
         # ! should find better way of indexing data with header info from .mvn
         pos_pelvis = np.transpose(np.array([pose_x[:,idx_pelvis_p], pose_y[:,idx_pelvis_p], pose_z[:,idx_pelvis_p]]))
@@ -250,7 +257,7 @@ for i_csv in range(len(csv_files)):
     if v_angle_filt[0]>75:
         v_angle_filt = -v_angle_filt
 
-    # v_angle_filt = gaussian_filter1d(v_angle,10)
+    # Identify frame cutoff
     v_angle_d1 = np.diff(v_angle_filt,1,0)*f_sampling
     v_angle_d2 = np.diff(v_angle_d1,1,0)*f_sampling
     frame_cutoff = np.where(v_angle_d1 >15)[0][0]
@@ -335,19 +342,7 @@ for i_csv in range(len(csv_files)):
         params.loc[idx, '6WK_area'] = np.pi * ellipse_fit_polr[3] * ellipse_fit_polr[2]
 
     # # Compute Foot Contact
-    # pos_foot_r_x = pose_x[:,idx_foot_r_p]
-    # vel_foot_r_x = np.diff(pos_foot_r_x)*f_cap
-    # # True = Foot contact
-    # thld_r_x = np.abs(vel_foot_r_x)<500
 
-    # pos_foot_l_x = pose_x[:,idx_foot_l_p]
-    # vel_foot_l_x = np.diff(pos_foot_l_x)*f_cap
-    # # True = Foot contact
-    # thld_l_x = np.abs(vel_foot_l_x)<500
-
-    # #quiv_col = np.where(thld_l_x, 'g', 'r')
-
-    # n_frames, n_cols = np.shape(pose_xyz)
     frames_v = range(n_frames)
     
 
@@ -362,7 +357,7 @@ for i_csv in range(len(csv_files)):
     #     elif thld_r_x[i]==False and thld_l_x[i]==False:
     #         quiv_col.append('y')
 
-    # Plot in transverse plave vs frames
+    # Plot in transverse plane vs frames
     plt.figure()
     plt.scatter(pos_neck_inPelvis[0:frame_cutoff,0], pos_neck_inPelvis[0:frame_cutoff,1], c=range(0,frame_cutoff), cmap='jet')
     plt.plot(x_e, y_e)
