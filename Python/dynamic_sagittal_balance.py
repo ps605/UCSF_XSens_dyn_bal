@@ -5,9 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.cm as cm
+from matplotlib.patches import Rectangle
 import numpy as np
 import pandas as pd
 import glob, os
+from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.tsa.stattools import acf as acf
+import stumpy as sp
 from lsqEllipse import *
 
 # SETUP
@@ -22,6 +26,13 @@ f_cutoff = 8#0.25
 f_sampling = 60
 f_nyquist = f_cutoff/(f_sampling/2)
 b, a = signal.butter(f_order, f_nyquist, btype='lowpass')
+
+# Smoothing
+f_order_sm = 6#2
+f_cutoff_sm = 4#0.25
+f_sampling_sm = 60
+f_nyquist_sm = f_cutoff_sm/(f_sampling_sm/2)
+b_sm, a_sm = signal.butter(f_order_sm, f_nyquist_sm, btype='lowpass')
 
 # This is a script to develop metrics to estimate dynamic saggital balance (DSB) of patients with markerless mocap methods
 
@@ -50,6 +61,9 @@ for i_csv in range(len(csv_files)):
     # Load in tracked 3D IMU Orientation and pass to array (quaternions)    
     data_q0123 = pd.read_csv(trial_name + '_qua.csv')  
     data_q0123 = data_q0123.drop(columns='Frame')
+    # Load in tracked 3D IMU Orientation and pass to array (quaternions)    
+    data_eul = pd.read_csv(trial_name + '_eul.csv')  
+    data_eul = data_eul.drop(columns='Frame')
     # Load in tracked 3D IMU Free Accelerations and pass to array (quaternions)    
     data_acc = pd.read_csv(trial_name + '_acc.csv')  
     data_acc = data_acc.drop(columns='Frame')
@@ -87,6 +101,19 @@ for i_csv in range(len(csv_files)):
     ori_q2 = ori_quat[:,2::4]
     ori_q3 = ori_quat[:,3::4]
 
+    ## Get Euler info
+    # Get indeces of L/R Foot.
+    idx_footR_eul = int(data_eul.columns.get_loc('Right Foot x'))
+    idx_footL_eul = int(data_eul.columns.get_loc('Left Foot x'))
+
+    # To np.array
+    eul = np.array(data_eul, dtype='float')
+
+    # Split to x, y, z and filter
+    eul_x = signal.filtfilt(b,a,eul[:,0::3], axis=0)
+    eul_y = signal.filtfilt(b,a,eul[:,1::3], axis=0)
+    eul_z = signal.filtfilt(b,a,eul[:,2::3], axis=0)
+
     ## Get Accelaration data
 
     # Get indeces of L/R Foot.
@@ -96,13 +123,67 @@ for i_csv in range(len(csv_files)):
     # To np.array
     acc = np.array(data_acc, dtype='float')
 
-    # Split to x, y, z
+    # Split to x, y, z and filter
     acc_x = signal.filtfilt(b,a,acc[:,0::3], axis=0)
     acc_y = signal.filtfilt(b,a,acc[:,1::3], axis=0)
     acc_z = signal.filtfilt(b,a,acc[:,2::3], axis=0)
 
     # Calculate Jerk norm
-    j_footR = np.sqrt((np.diff(acc_x[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_y[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_z[:,idx_footR_acc//3])*f_sampling)**2)
+    jer_footR = np.sqrt((np.diff(acc_x[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_y[:,idx_footR_acc//3])*f_sampling)**2 + (np.diff(acc_z[:,idx_footR_acc//3])*f_sampling)**2)
+    jer_footL = np.sqrt((np.diff(acc_x[:,idx_footL_acc//3])*f_sampling)**2 + (np.diff(acc_y[:,idx_footL_acc//3])*f_sampling)**2 + (np.diff(acc_z[:,idx_footL_acc//3])*f_sampling)**2)
+    
+    # Smoothing
+    jer_footR_sm = signal.filtfilt(b_sm, a_sm, jer_footR)
+    jer_footL_sm = signal.filtfilt(b_sm, a_sm, jer_footL)
+
+    # Get max
+    max_jer_R,_ = signal.find_peaks(jer_footR_sm, distance=70, height=100)
+    max_jer_L,_ = signal.find_peaks(jer_footL_sm, distance=70, height=100)
+
+    # Get gyration and invert
+    gyr_footR = -eul_y[:,idx_footR_eul//3]
+    gyr_footL = -eul_y[:,idx_footL_eul//3]
+    
+    # Get max
+    max_gyr_R,_ = signal.find_peaks(gyr_footR, distance=70, height=100)
+    max_gyr_L,_ = signal.find_peaks(gyr_footL, distance=70, height=100)
+
+    # Compute Autocorrelation Functions with 600 frame lags (10 seconds)
+    acf_jer_R = acf(jer_footR, nlags=600)
+    acf_jer_L = acf(jer_footL, nlags=600)
+    acf_gyr_R = acf(gyr_footR, nlags=600)
+    acf_gyr_L = acf(gyr_footL, nlags=600)
+
+    # Matrix Profile
+    window = 100
+    jer_L_mp = sp.stump(jer_footL, window)
+    idx_motif = np.argsort(jer_L_mp[:, 0])[0]
+    idx_nearN = jer_L_mp[idx_motif,1]
+
+    # Check Plots
+    plt.figure()
+    plt.plot(jer_footL)
+    plt.plot(max_gyr_L,jer_footL_sm[max_gyr_L],'x')
+
+
+    fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
+    axs[0].plot(jer_footL)
+    axs[1].plot(jer_L_mp[:,0])
+    axs[0].axvline(x=idx_motif, linestyle='dashed', color='r')
+    axs[0].axvline(x=idx_nearN, linestyle='dashed', color='g')
+    rect = Rectangle((idx_motif, 0), window, 800, facecolor='lightgrey')
+    axs[0].add_patch(rect)
+    axs[1].axvline(x=idx_motif, linestyle='dashed', color='r')
+    axs[1].axvline(x=idx_nearN, linestyle='dashed', color='g')
+    rect = Rectangle((idx_nearN, 0), window, 800, facecolor='lightgrey')
+    axs[0].add_patch(rect)
+
+    plt.figure()
+    plt.plot(acf_jer_L)
+    plt.plot(acf_jer_R)
+    plt.figure()
+    plt.plot(acf_gyr_L)
+    plt.plot(acf_gyr_R)
 
     # Check both position and quat have the same frames        
     n_frames_pos, n_cols_pos = np.shape(data_xyz)
