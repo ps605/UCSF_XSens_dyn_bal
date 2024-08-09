@@ -37,8 +37,8 @@ f_nyquist = f_cutoff/(f_sampling/2)
 b, a = signal.butter(f_order, f_nyquist, btype='lowpass')
 
 # Smoothing
-f_order_sm = 6#2
-f_cutoff_sm = 6#0.25
+f_order_sm = 8#2
+f_cutoff_sm = 14#0.25
 f_sampling_sm = 60
 f_nyquist_sm = f_cutoff_sm/(f_sampling_sm/2)
 b_sm, a_sm = signal.butter(f_order_sm, f_nyquist_sm, btype='lowpass')
@@ -154,8 +154,8 @@ for i_csv in range(len(csv_files)):
     jer_footL_sm = signal.filtfilt(b_sm, a_sm, jer_footL)
 
     # Get max
-    max_jer_R,_ = signal.find_peaks(jer_footR_sm, distance=50, height=100, prominence=20)
-    max_jer_L,_ = signal.find_peaks(jer_footL_sm, distance=50, height=100, prominence=20)
+    max_jer_R,_ = signal.find_peaks(jer_footR_sm, distance=50, height=150, prominence=20)
+    max_jer_L,_ = signal.find_peaks(jer_footL_sm, distance=50, height=150, prominence=20)
 
     ## --- Compute signal analysis ---
     if flag_ACFandMP:
@@ -190,8 +190,6 @@ for i_csv in range(len(csv_files)):
         plt.plot(acf_gyr_L)
         plt.plot(acf_gyr_R)
    
-
-
     # Check both position and quat have the same frames        
     n_frames_pos, n_cols_pos = np.shape(data_xyz)
     n_frames_quat, n_cols_quat = np.shape(data_q0123)
@@ -236,7 +234,7 @@ for i_csv in range(len(csv_files)):
     v_angle_d1 = np.diff(v_angle_filt,1,0)*f_sampling
     v_angle_d2 = np.diff(v_angle_d1,1,0)*f_sampling
     # idx_turn = np.where(v_angle_d1 >15)[0][0]
-    idx_turn = np.argmax(pos_pelvis[:,0]) - 180
+    idx_turn = np.argmax(pos_pelvis[:,0])
 
     ## Identify Gait events (Heel Strike HS; Toe Off TO)
     # Find closest previous toe off (gyration min) to turn
@@ -248,7 +246,7 @@ for i_csv in range(len(csv_files)):
     TO_L = min_gyr_L[near_L]
     TO_R = min_gyr_R[near_R]
 
-    # Tidy up gait event so HS is first
+      # Tidy up gait event so HS is first (removes toe off from standing)
     if TO_L[0] < HS_L[0]:
         TO_L = np.delete(TO_L,0)
 
@@ -263,14 +261,17 @@ for i_csv in range(len(csv_files)):
     min_HS = np.minimum(np.min(HS_L), np.min(HS_R))
 
     # Get Foot contact ranges
+    n_TO_L = TO_L.shape[0]
+    n_TO_R = TO_R.shape[0]
+
+    foot_contact_L = np.vstack((HS_L[:n_TO_L], TO_L)).T
+    foot_contact_R = np.vstack((HS_R[:n_TO_R], TO_R)).T
+
     if min_HS in HS_L:
         first_HS = 'L'
-        foot_contact_L = np.vstack((HS_L[:-1], TO_L)).T
-        foot_contact_R = np.vstack((HS_R[:-1], TO_R)).T
     elif min_HS in HS_R:
         first_HS = 'R'
-        foot_contact_L = np.vstack((HS_L[:-1], TO_L)).T
-        foot_contact_R = np.vstack((HS_R[:-1], TO_R)).T
+
 
     # Get Foot contact vectors
     foot_contact_L_v = []
@@ -282,8 +283,6 @@ for i_csv in range(len(csv_files)):
     for j in range(foot_contact_R.shape[0]):
         frames_add = np.arange(foot_contact_R[j,0], foot_contact_R[j,1], 1)
         foot_contact_R_v.extend(frames_add)
-
-
 
     quiv_col = []
 
@@ -396,25 +395,26 @@ for i_csv in range(len(csv_files)):
 
     # Check Plots max jerk and gyration
     fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
-    axs[0].plot(jer_footL_sm, color='blue')
-    axs[0].plot(max_jer_L, jer_footL_sm[max_jer_L],'o', color='blue')   
-    axs[1].plot(gyr_footL, color='blue', linestyle='-')
-    axs[1].plot(min_gyr_L, gyr_footL[min_gyr_L],'x', color='blue')
-    for i_stance in range(TO_L.__len__()):
-        rect = Rectangle((HS_L[i_stance],-50), HS_L[i_stance] - TO_L[i_stance], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
+    axs[0].plot(jer_footL_sm[:max_TO], color='blue')
+    axs[0].plot(max_jer_L[max_jer_L<=max_TO], jer_footL_sm[max_jer_L[max_jer_L<=max_TO]],'o', color='blue')   
+    axs[1].plot(gyr_footL[:max_TO], color='blue', linestyle='-')
+    axs[1].plot(min_gyr_L[min_gyr_L<=max_TO], gyr_footL[min_gyr_L[min_gyr_L<=max_TO]],'x', color='blue')
+    for i_stance in range(foot_contact_L.shape[0]):
+        rect = Rectangle((foot_contact_L[i_stance,0],-50), foot_contact_L[i_stance,1] - foot_contact_L[i_stance,0], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
         axs[0].add_patch(rect)
-        rect = Rectangle((HS_L[i_stance],-50), HS_L[i_stance] - TO_L[i_stance], 80, facecolor='lightblue', edgecolor='blue', alpha= 1)
+        rect = Rectangle((foot_contact_L[i_stance,0],-50), foot_contact_L[i_stance,1] - foot_contact_L[i_stance,0], 80, facecolor='lightblue', edgecolor='blue', alpha= 1)
         axs[1].add_patch(rect)
 
-    axs[0].plot(jer_footR_sm, color='green')
-    axs[0].plot(max_jer_R, jer_footR_sm[max_jer_R],'o', color='green')
-    axs[1].plot(gyr_footR, color='green', linestyle='-')
-    axs[1].plot(min_gyr_R, gyr_footR[min_gyr_R],'x', color='green')
+    axs[0].plot(jer_footR_sm[:max_TO], color='green')
+    axs[0].plot(max_jer_R[max_jer_R<=max_TO], jer_footR_sm[max_jer_R[max_jer_R<=max_TO]],'o', color='green')
+    axs[1].plot(gyr_footR[:max_TO], color='green', linestyle='-')
+    axs[1].plot(min_gyr_R[min_gyr_R<=max_TO], gyr_footR[min_gyr_R[min_gyr_R<=max_TO]],'x', color='green')
     for i_stance in range(TO_R.__len__()):
-        rect = Rectangle((HS_R[i_stance],-50), HS_R[i_stance] - TO_R[i_stance], 800, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
+        rect = Rectangle((foot_contact_R[i_stance,0],-50), foot_contact_R[i_stance,1] - foot_contact_R[i_stance,0], 800, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
         axs[0].add_patch(rect)
-        rect = Rectangle((HS_R[i_stance],-50), HS_R[i_stance] - TO_R[i_stance], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
+        rect = Rectangle((foot_contact_R[i_stance,0],-50), foot_contact_R[i_stance,1] - foot_contact_R[i_stance,0], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
         axs[1].add_patch(rect)
+
     axs[0].set_ylabel('Jerk norm (m/s^3)')
     axs[1].set_ylabel('Gyrarion y-axis - Euler (deg/s)')
     axs[1].set_xlabel('Frame Number')
