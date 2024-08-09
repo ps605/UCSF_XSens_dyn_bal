@@ -262,6 +262,7 @@ for i_csv in range(len(csv_files)):
     # Find first HS
     min_HS = np.minimum(np.min(HS_L), np.min(HS_R))
 
+    # Get Foot contact ranges
     if min_HS in HS_L:
         first_HS = 'L'
         foot_contact_L = np.vstack((HS_L[:-1], TO_L)).T
@@ -271,6 +272,7 @@ for i_csv in range(len(csv_files)):
         foot_contact_L = np.vstack((HS_L[:-1], TO_L)).T
         foot_contact_R = np.vstack((HS_R[:-1], TO_R)).T
 
+    # Get Foot contact vectors
     foot_contact_L_v = []
     for j in range(foot_contact_L.shape[0]):
         frames_add = np.arange(foot_contact_L[j,0], foot_contact_L[j,1], 1)
