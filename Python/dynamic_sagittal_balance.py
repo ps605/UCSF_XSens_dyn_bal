@@ -38,7 +38,7 @@ b, a = signal.butter(f_order, f_nyquist, btype='lowpass')
 
 # Smoothing
 f_order_sm = 6#2
-f_cutoff_sm = 4#0.25
+f_cutoff_sm = 6#0.25
 f_sampling_sm = 60
 f_nyquist_sm = f_cutoff_sm/(f_sampling_sm/2)
 b_sm, a_sm = signal.butter(f_order_sm, f_nyquist_sm, btype='lowpass')
@@ -126,11 +126,11 @@ for i_csv in range(len(csv_files)):
     gyr_footL = -eul_y[:,idx_footL_eul//3]
     
     # Get max and min
-    max_gyr_R,_ = signal.find_peaks(gyr_footR, distance=70, height=10)
-    max_gyr_L,_ = signal.find_peaks(gyr_footL, distance=70, height=10)
+    max_gyr_R,_ = signal.find_peaks(gyr_footR, distance=50, height=10)
+    max_gyr_L,_ = signal.find_peaks(gyr_footL, distance=50, height=10)
 
-    min_gyr_R,_ = signal.find_peaks(-gyr_footR, distance=70, height=10)
-    min_gyr_L,_ = signal.find_peaks(-gyr_footL, distance=70, height=10)
+    min_gyr_R,_ = signal.find_peaks(-gyr_footR, distance=50, height=10)
+    min_gyr_L,_ = signal.find_peaks(-gyr_footL, distance=50, height=10)
 
     ## --- Get Accelaration data ---
     # Get indeces of L/R Foot.
@@ -154,8 +154,8 @@ for i_csv in range(len(csv_files)):
     jer_footL_sm = signal.filtfilt(b_sm, a_sm, jer_footL)
 
     # Get max
-    max_jer_R,_ = signal.find_peaks(jer_footR_sm, distance=70, height=100)
-    max_jer_L,_ = signal.find_peaks(jer_footL_sm, distance=70, height=100)
+    max_jer_R,_ = signal.find_peaks(jer_footR_sm, distance=50, height=100, prominence=20)
+    max_jer_L,_ = signal.find_peaks(jer_footL_sm, distance=50, height=100, prominence=20)
 
     ## --- Compute signal analysis ---
     if flag_ACFandMP:
@@ -190,30 +190,7 @@ for i_csv in range(len(csv_files)):
         plt.plot(acf_gyr_L)
         plt.plot(acf_gyr_R)
    
-    # Check Plots max jerk and gyration
-    fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
-    axs[0].plot(jer_footL_sm, color='blue')
-    axs[0].plot(max_jer_L, jer_footL_sm[max_jer_L],'o', color='blue')   
-    axs[1].plot(gyr_footL, color='blue', linestyle='-')
-    axs[1].plot(min_gyr_L, gyr_footL[min_gyr_L],'x', color='blue')
-    for i_stance in range(4):
-        rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
-        axs[0].add_patch(rect)
-        rect = Rectangle((max_jer_L[i_stance],-50), min_gyr_L[i_stance+1] - max_jer_L[i_stance], 80, facecolor='lightblue', edgecolor='blue', alpha= 1)
-        axs[1].add_patch(rect)
 
-    axs[0].plot(jer_footR_sm, color='green')
-    axs[0].plot(max_jer_R, jer_footR_sm[max_jer_R],'o', color='green')
-    axs[1].plot(gyr_footR, color='green', linestyle='-')
-    axs[1].plot(min_gyr_R, gyr_footR[min_gyr_R],'x', color='green')
-    for i_stance in range(4):
-        rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 800, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
-        axs[0].add_patch(rect)
-        rect = Rectangle((max_jer_R[i_stance],-50), min_gyr_R[i_stance+1] - max_jer_R[i_stance], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
-        axs[1].add_patch(rect)
-    axs[0].set_ylabel('Jerk norm (m/s^3)')
-    axs[1].set_ylabel('Gyrarion y-axis - Euler (deg/s)')
-    axs[1].set_xlabel('Frame Number')
 
     # Check both position and quat have the same frames        
     n_frames_pos, n_cols_pos = np.shape(data_xyz)
@@ -258,7 +235,8 @@ for i_csv in range(len(csv_files)):
     # Identify 180 deg U-turn
     v_angle_d1 = np.diff(v_angle_filt,1,0)*f_sampling
     v_angle_d2 = np.diff(v_angle_d1,1,0)*f_sampling
-    idx_turn = np.where(v_angle_d1 >15)[0][0]
+    # idx_turn = np.where(v_angle_d1 >15)[0][0]
+    idx_turn = np.argmax(pos_pelvis[:,0]) - 180
 
     ## Identify Gait events (Heel Strike HS; Toe Off TO)
     # Find closest previous toe off (gyration min) to turn
@@ -270,9 +248,52 @@ for i_csv in range(len(csv_files)):
     TO_L = min_gyr_L[near_L]
     TO_R = min_gyr_R[near_R]
 
+    # Tidy up gait event so HS is first
+    if TO_L[0] < HS_L[0]:
+        TO_L = np.delete(TO_L,0)
+
+    if TO_R[0] < HS_R[0]:
+        TO_R = np.delete(TO_R,0)
+
     max_TO_L = np.max(min_gyr_L[near_L])
     max_TO_R = np.max(min_gyr_R[near_R])
     max_TO = np.maximum(max_TO_L, max_TO_R)
+
+    # Find first HS
+    min_HS = np.minimum(np.min(HS_L), np.min(HS_R))
+
+    if min_HS in HS_L:
+        first_HS = 'L'
+        foot_contact_L = np.vstack((HS_L[:-1], TO_L)).T
+        foot_contact_R = np.vstack((HS_R[:-1], TO_R)).T
+    elif min_HS in HS_R:
+        first_HS = 'R'
+        foot_contact_L = np.vstack((HS_L[:-1], TO_L)).T
+        foot_contact_R = np.vstack((HS_R[:-1], TO_R)).T
+
+    foot_contact_L_v = []
+    for j in range(foot_contact_L.shape[0]):
+        frames_add = np.arange(foot_contact_L[j,0], foot_contact_L[j,1], 1)
+        foot_contact_L_v.extend(frames_add)
+
+    foot_contact_R_v = []
+    for j in range(foot_contact_R.shape[0]):
+        frames_add = np.arange(foot_contact_R[j,0], foot_contact_R[j,1], 1)
+        foot_contact_R_v.extend(frames_add)
+
+
+
+    quiv_col = []
+
+    for i in range(min_HS, max_TO):
+        if  i in foot_contact_R_v and i in foot_contact_L_v:
+            quiv_col.append('r')
+        elif i in foot_contact_L_v:
+            quiv_col.append('b')
+        elif i in foot_contact_R_v:
+            quiv_col.append('g')
+        else:
+            quiv_col.append('y')
 
 
     # pol = np.polyfit(range(0,n_frames), v_angle_filt,30)
@@ -298,7 +319,7 @@ for i_csv in range(len(csv_files)):
     y_dist = y_max - y_min
 
     # Fit Ellipse
-    ellipse_fit_cart = fit_ellipse(pos_neck_inPelvis[0:max_TO,0], pos_neck_inPelvis[0:max_TO,1])
+    ellipse_fit_cart = fit_ellipse(pos_neck_inPelvis[min_HS:max_TO,0], pos_neck_inPelvis[min_HS:max_TO,1])
     ellipse_fit_polr = cart_to_pol(ellipse_fit_cart)
     x_e, y_e = get_ellipse_pts(ellipse_fit_polr)
 
@@ -371,9 +392,36 @@ for i_csv in range(len(csv_files)):
     #     elif thld_r_x[i]==False and thld_l_x[i]==False:
     #         quiv_col.append('y')
 
+    # Check Plots max jerk and gyration
+    fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
+    axs[0].plot(jer_footL_sm, color='blue')
+    axs[0].plot(max_jer_L, jer_footL_sm[max_jer_L],'o', color='blue')   
+    axs[1].plot(gyr_footL, color='blue', linestyle='-')
+    axs[1].plot(min_gyr_L, gyr_footL[min_gyr_L],'x', color='blue')
+    for i_stance in range(TO_L.__len__()):
+        rect = Rectangle((HS_L[i_stance],-50), HS_L[i_stance] - TO_L[i_stance], 800, facecolor='lightblue', edgecolor='blue', alpha= 1)
+        axs[0].add_patch(rect)
+        rect = Rectangle((HS_L[i_stance],-50), HS_L[i_stance] - TO_L[i_stance], 80, facecolor='lightblue', edgecolor='blue', alpha= 1)
+        axs[1].add_patch(rect)
+
+    axs[0].plot(jer_footR_sm, color='green')
+    axs[0].plot(max_jer_R, jer_footR_sm[max_jer_R],'o', color='green')
+    axs[1].plot(gyr_footR, color='green', linestyle='-')
+    axs[1].plot(min_gyr_R, gyr_footR[min_gyr_R],'x', color='green')
+    for i_stance in range(TO_R.__len__()):
+        rect = Rectangle((HS_R[i_stance],-50), HS_R[i_stance] - TO_R[i_stance], 800, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
+        axs[0].add_patch(rect)
+        rect = Rectangle((HS_R[i_stance],-50), HS_R[i_stance] - TO_R[i_stance], 80, facecolor='lightgreen', edgecolor='green', alpha= 0.5)
+        axs[1].add_patch(rect)
+    axs[0].set_ylabel('Jerk norm (m/s^3)')
+    axs[1].set_ylabel('Gyrarion y-axis - Euler (deg/s)')
+    axs[1].set_xlabel('Frame Number')
+    plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_NeckinP_gaitEvents.png')
+    plt.close()
+
     # Plot in transverse plane vs frames
     plt.figure()
-    plt.scatter(pos_neck_inPelvis[0:max_TO,0], pos_neck_inPelvis[0:max_TO,1], c=range(0,max_TO), cmap='jet')
+    plt.scatter(pos_neck_inPelvis[min_HS:max_TO,0], pos_neck_inPelvis[min_HS:max_TO,1], c=quiv_col, cmap='jet')
     plt.plot(x_e, y_e)
     clb = plt.colorbar()
     clb.ax.set_title('Frames')
@@ -383,7 +431,7 @@ for i_csv in range(len(csv_files)):
     plt.xlabel('Anterior(+) / Posterior (-) displacement (mm)')
     plt.ylabel('Left (+) / Right (-) displacement (mm)') 
     plt.title(csv_file[0:-12])       
-    plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_NeckinP.png')
+    plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_NeckinP_footstrike.png')
     plt.close()
 
     # # Plot sagittal and coronal against frames
@@ -399,8 +447,8 @@ for i_csv in range(len(csv_files)):
 
     # # Plot quiver plot
     plt.figure()
-    plt.plot(pos_pelvis[0:max_TO,0], pos_pelvis[0:max_TO,1], c='orange')
-    plt.quiver(pos_pelvis[0:max_TO,0], pos_pelvis[0:max_TO,1], d_neckPelvis[0:max_TO,0], d_neckPelvis[0:max_TO,1],
+    plt.plot(pos_pelvis[min_HS:max_TO,0], pos_pelvis[min_HS:max_TO,1], c='orange')
+    plt.quiver(pos_pelvis[min_HS:max_TO,0], pos_pelvis[min_HS:max_TO,1], d_neckPelvis[min_HS:max_TO,0], d_neckPelvis[min_HS:max_TO,1],
                 angles='xy', scale_units='xy', scale=0.5, color=quiv_col, headwidth=0, headlength=0, headaxislength=0)
     plt.xlabel('Anterior displacement (mm)')
     plt.ylabel('Lateral displacement (mm)') 
@@ -412,4 +460,4 @@ for i_csv in range(len(csv_files)):
     print(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP.png saved')
 
 # xy_csv_df = pd.DataFrame(data = params, index = csv_files)
-params.to_csv(data_path + 'params.csv')
+# params.to_csv(data_path + 'params.csv')
