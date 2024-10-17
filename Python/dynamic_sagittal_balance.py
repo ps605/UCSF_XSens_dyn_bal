@@ -64,6 +64,9 @@ for i_csv in range(len(csv_files)):
     trial_name = data_path + csv_file[:-8] #'IMU_Segment_pos_xyz'
     id_int = int(csv_file[0:3])
     
+    if id_int !=55:
+        continue
+    
     ## --- Get joint position data ---
     # Load in tracked joint data from 3D pose and pass to array (XYZ)   
     data_xyz = pd.read_csv(trial_name + '_pos.csv')
@@ -274,7 +277,7 @@ for i_csv in range(len(csv_files)):
     TO_L = min_gyr_L[near_L]
     TO_R = min_gyr_R[near_R]
 
-      # Tidy up gait event so HS is first (removes toe off from standing)
+    # Tidy up gait event so HS is first (removes toe off from standing)
     if TO_L[0] < HS_L[0]:
         TO_L = np.delete(TO_L,0)
 
@@ -426,19 +429,8 @@ for i_csv in range(len(csv_files)):
     # # Compute Foot Contact
 
     frames_v = range(n_frames)
+    norm_frames = 100*(np.arange(frames_v[min_HS], frames_v[max_TO]) - frames_v[min_HS])*100/(frames_v[max_TO]-frames_v[min_HS+1])
     
-
-    # quiv_col = []
-    # for i in frames_v:
-    #     if thld_r_x[i]==True and thld_l_x[i]==False:
-    #         quiv_col.append('g')
-    #     elif thld_r_x[i]==False and thld_l_x[i]==True:
-    #         quiv_col.append('r')
-    #     elif thld_r_x[i]==True and thld_l_x[i]==True:
-    #         quiv_col.append('b')
-    #     elif thld_r_x[i]==False and thld_l_x[i]==False:
-    #         quiv_col.append('y')
-
     # Check Plots max jerk and gyration
     fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
     axs[0].plot(jer_footL[:max_TO], color='blue')
@@ -485,30 +477,32 @@ for i_csv in range(len(csv_files)):
         plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_NeckinP_footstrike.png')
         plt.close()
     else:
+        # Set colourmap
+        cm = plt.colormaps.get('RdYlBu')
         plt.figure()
-        plt.scatter(pos_neck_inPelvis[min_HS:max_TO,2], pos_neck_inPelvis[min_HS:max_TO,0])
-        plt.plot(x_e, y_e)
-        # clb = plt.colorbar()
-        # clb.ax.set_title('Frames')
-        plt.grid()
-        plt.xlim(-45, 45)
-        plt.ylim(-45, 45)
-        plt.xlabel('Flexion(+) / Extension (-) (deg)')
-        plt.ylabel('Left (+) / Right (-) Lateral Bending (deg)') 
-        plt.title(csv_file[0:-12])       
-        plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_angle_footstrike.png')
+        plt.axvline(c='grey', zorder=0)
+        plt.axhline(c='grey', zorder=0)
+        plt.scatter(pos_neck_inPelvis[min_HS:max_TO,2], pos_neck_inPelvis[min_HS:max_TO,0], c = norm_frames)
+        plt.plot(x_e, y_e, c = 'black')
+        plt.scatter(ellipse_fit_polr[0],ellipse_fit_polr[1],c='black')
+        clb = plt.colorbar(cmap=norm_frames)
+        clb.ax.set_title('% Walk')
+        # plt.grid()
+        plt.xlim(-20, 40)
+        plt.ylim(-20, 20)        
+        plt.xlabel('Flexion (+) / Extension (-) (\N{DEGREE SIGN})')
+        plt.ylabel('Left (+) / Right (-) Lateral Bending (\N{DEGREE SIGN})') 
+        # plt.title(csv_file[0:-12])       
+        plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_angleT8Global_pcWalk.png')
         plt.close()
 
-    # # Plot sagittal and coronal against frames
-    # plt.figure()
-    # plt.plot(frames_v[0:plot_to], pos_neck_inPelvis[0:plot_to,0], c='r')
-    # plt.plot(frames_v[0:plot_to], pos_neck_inPelvis[0:plot_to,1], c='b')
-    # plt.ylim(-100, 100)
-    # plt.xlabel('Frame Number')
-    # plt.ylabel('Mid-Shoulder Position in Pelvis Reference System') 
-    # plt.legend(['Red - Sagittal (A/P)', 'Blue - Coronal (L/R)'], loc='upper right')
-    # plt.savefig(data_path + 'Figures/' + csv_file[0:-12] + '_d_MSPinP_sep.png')
-    # plt.close()
+        fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
+        axs[0].plot(pos_neck_inPelvis[min_HS:max_TO,2],c='blue')
+        axs[1].plot(pos_neck_inPelvis[min_HS:max_TO,0],c='green')
+        axs[0].set_ylabel('Flex. (+) / Ext. (-) (\N{DEGREE SIGN})', va='left')
+        axs[1].set_ylabel('L (+) / R (-) Bending (\N{DEGREE SIGN})')
+        axs[1].set_xlabel('Frame Number')
+
 
     # # Plot quiver plot
     # if flag_useJointAngle == False:
@@ -541,4 +535,4 @@ if flag_useJointAngle == False:
     params.to_csv(data_path + 'params_pos.csv')
 else:
     xy_csv_df = pd.DataFrame(data = params, index = csv_files)
-    params.to_csv(data_path + 'params_ang.csv')
+    params.to_csv(data_path + 'params_ang_T8inPel.csv')
