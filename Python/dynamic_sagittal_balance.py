@@ -534,9 +534,9 @@ for i_csv in range(len(csv_files)):
     #     plt.close()
 
     print(data_path + 'Figures/' + csv_file[0:-12] + ' saved')
-    angLB_df = pd.DataFrame(pos_neck_inPelvis[:,0], columns=[csv_file[0:-12] + '_LB'])
-    angAR_df = pd.DataFrame(pos_neck_inPelvis[:,1], columns=[csv_file[0:-12] + '_AR'])
-    angFE_df = pd.DataFrame(pos_neck_inPelvis[:,2], columns=[csv_file[0:-12] + '_FE'])
+    angLB_df = pd.DataFrame(pos_neck_inPelvis[min_HS:max_TO,0], columns=[csv_file[0:-12] + '_LB'])
+    angAR_df = pd.DataFrame(pos_neck_inPelvis[min_HS:max_TO,1], columns=[csv_file[0:-12] + '_AR'])
+    angFE_df = pd.DataFrame(pos_neck_inPelvis[min_HS:max_TO,2], columns=[csv_file[0:-12] + '_FE'])
     
     ang_T8inGlob = pd.concat([ang_T8inGlob, angLB_df], ignore_index=False, axis=1)
     ang_T8inGlob = pd.concat([ang_T8inGlob, angAR_df], ignore_index=False, axis=1)
