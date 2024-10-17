@@ -48,6 +48,11 @@ b_sm, a_sm = signal.butter(f_order_sm, f_nyquist_sm, btype='lowpass')
 
 # Where to read data from
 data_path = '../In/Box_data/'
+post_op_ptnts = [2, 6, 8, 9, 16, 17, 18, 19, 22, 24, 27, \
+                 31, 33, 34, 36, 38, 39, 44, 45, 46, 48, \
+                 51, 52, 55, 60, 62, 64, 67, 70, 71, 79, \
+                 102]
+ang_T8inGlob = pd.DataFrame(np.arange(100),columns=['initialise'])
 
 # List .files in directory, loop through them and check for .csv
 csv_files = glob.glob(data_path + '*pos.csv')
@@ -64,7 +69,7 @@ for i_csv in range(len(csv_files)):
     trial_name = data_path + csv_file[:-8] #'IMU_Segment_pos_xyz'
     id_int = int(csv_file[0:3])
     
-    if id_int !=55:
+    if not id_int in post_op_ptnts:
         continue
     
     ## --- Get joint position data ---
@@ -499,7 +504,7 @@ for i_csv in range(len(csv_files)):
         fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
         axs[0].plot(pos_neck_inPelvis[min_HS:max_TO,2],c='blue')
         axs[1].plot(pos_neck_inPelvis[min_HS:max_TO,0],c='green')
-        axs[0].set_ylabel('Flex. (+) / Ext. (-) (\N{DEGREE SIGN})', va='left')
+        axs[0].set_ylabel('Flex. (+) / Ext. (-) (\N{DEGREE SIGN})')
         axs[1].set_ylabel('L (+) / R (-) Bending (\N{DEGREE SIGN})')
         axs[1].set_xlabel('Frame Number')
 
@@ -529,6 +534,16 @@ for i_csv in range(len(csv_files)):
     #     plt.close()
 
     print(data_path + 'Figures/' + csv_file[0:-12] + ' saved')
+    angLB_df = pd.DataFrame(pos_neck_inPelvis[:,0], columns=[csv_file[0:-12] + '_LB'])
+    angAR_df = pd.DataFrame(pos_neck_inPelvis[:,1], columns=[csv_file[0:-12] + '_AR'])
+    angFE_df = pd.DataFrame(pos_neck_inPelvis[:,2], columns=[csv_file[0:-12] + '_FE'])
+    
+    ang_T8inGlob = pd.concat([ang_T8inGlob, angLB_df], ignore_index=False, axis=1)
+    ang_T8inGlob = pd.concat([ang_T8inGlob, angAR_df], ignore_index=False, axis=1)
+    ang_T8inGlob = pd.concat([ang_T8inGlob, angFE_df], ignore_index=False, axis=1)
+
+
+ang_T8inGlob.to_csv(data_path + 'pre_and_6WK_T8inGlob.csv')
 
 if flag_useJointAngle == False:
     xy_csv_df = pd.DataFrame(data = params, index = csv_files)
