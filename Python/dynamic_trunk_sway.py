@@ -2,7 +2,7 @@ from scipy.spatial.transform import Rotation as R
 from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
-from scipy.fft import fft
+from scipy.fft import fft, fftfreq
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -47,6 +47,15 @@ def calculate_period(signal, sampling_rate):
 
     period = 1 / xf[dominant_frequency_index+1] 
     return period
+
+def check_fft(signal, sampling_rate):
+    N = signal.length() * sampling_rate
+    yf = fft(signal)
+    xf = fftfreq(N, 1 / sampling_rate)
+
+    plt.figure()
+    plt.plot(xf, np.abs(yf), c='r')
+    plt.show() 
 
 # SETUP
 plt.ioff()
@@ -138,10 +147,6 @@ for i_csv in range(len(csv_files)):
     ori_q1_T8 = ori_quat[:,idx_T8_q+1] 
     ori_q2_T8 = ori_quat[:,idx_T8_q+2]
     ori_q3_T8 = ori_quat[:,idx_T8_q+3]
-
-    ex = [1, 0, 0]
-    ey = [0, 1, 0]
-    ez = [0, 0, 1]
 
     r = R.from_quat([ori_q1_T8[1], ori_q2_T8[1], ori_q3_T8[1], ori_q0_T8[1]])
     eul_recon = np.array([0.000]*ori_q0_T8.__len__()*3).reshape(ori_q0_T8.__len__(),3)
