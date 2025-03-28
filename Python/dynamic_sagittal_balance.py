@@ -19,7 +19,7 @@ plt.ioff()
 flag_seperateXYZ    = False
 flag_makeGIF        = False
 flag_neckPevlis     = True
-flag_useJointAngle  = True
+flag_useAngle       = True
 flag_ACFandMP       = False # Compute Autocorreletion and Matrix Profile
 
 # Filtering and Smoothing Parameters
@@ -51,7 +51,8 @@ data_path = '../In/Box_data/'
 post_op_ptnts = [2, 6, 8, 9, 16, 17, 18, 19, 22, 24, 27, \
                  31, 33, 34, 36, 38, 39, 44, 45, 46, 48, \
                  51, 52, 55, 60, 62, 64, 67, 70, 71, 79, \
-                 102]
+                 83, 99, 102, 112, 127, 146]
+
 ang_T8inGlob = pd.DataFrame(np.arange(100),columns=['initialise'])
 
 # List .files in directory, loop through them and check for .csv
@@ -82,8 +83,8 @@ for i_csv in range(len(csv_files)):
     # Load in tracked 3D IMU Orientation and pass to array (quaternions)    
     data_q0123 = pd.read_csv(trial_name + '_qua.csv')  
     data_q0123 = data_q0123.drop(columns='Frame')
-    # Load in tracked 3D IMU Orientation and pass to array (quaternions)    
-    data_eul = pd.read_csv(trial_name + '_eul.csv')  
+    # Load in tracked 3D IMU Orientation and pass to array (euler)    
+    data_eul = pd.read_csv(trial_name[:-3] + 'sen_ang.csv')  
     data_eul = data_eul.drop(columns='Frame')
     # Load in tracked 3D IMU Free Accelerations and pass to array (quaternions)    
     data_acc = pd.read_csv(trial_name + '_acc.csv')  
@@ -241,18 +242,18 @@ for i_csv in range(len(csv_files)):
         # Get Transformed (?) Pelvis Angle
         v_angle = np.zeros([n_frames,1])
         # Loop through and transform to pelvis ref system
-        pos_neck_inPelvis = np.zeros([n_frames, 3])
+        outcome_var = np.zeros([n_frames, 3])
         for i_frame in range(n_frames):
             # Get rotation matrix at each frame
             rm_pelvis = R.from_quat([ori_q1[i_frame, idx_pelvis_q], ori_q2[i_frame, idx_pelvis_q], ori_q3[i_frame, idx_pelvis_q], ori_q0[i_frame, idx_pelvis_q]])
             rmi_pelvis = rm_pelvis.inv()
             rmi_pelvis.as_matrix()
-            pos_neck_inPelvis[i_frame,:] = rmi_pelvis.apply(d_neckPelvis[i_frame,:])
+            outcome_var[i_frame,:] = rmi_pelvis.apply(d_neckPelvis[i_frame,:])
             v_angle[i_frame] = np.linalg.norm(rmi_pelvis.as_rotvec(degrees=True))
     
     # TEMP - replace position with angle
-    if flag_neckPevlis == True and flag_useJointAngle == True:
-        pos_neck_inPelvis = np.transpose(np.array([angle_x[:,idx_T8_a], angle_y[:,idx_T8_a], angle_z[:,idx_T8_a]]))
+    if flag_neckPevlis == True and flag_useAngle == True:
+        outcome_var = np.transpose(np.array([angle_x[:,idx_pel_a], angle_y[:,idx_pel_a], angle_z[:,idx_pel_a]]))
 
 
     v_angle_filt = signal.filtfilt(b,a,v_angle,0)
@@ -341,40 +342,40 @@ for i_csv in range(len(csv_files)):
     plt.close()
     # plt.plot(v_angle_d2)
     
-    x_min = np.min(pos_neck_inPelvis[:max_TO,0])
-    x_max = np.max(pos_neck_inPelvis[:max_TO,0])
-    y_min = np.min(pos_neck_inPelvis[:max_TO,1])
-    y_max = np.max(pos_neck_inPelvis[:max_TO,1])
+    x_min = np.min(outcome_var[:max_TO,0])
+    x_max = np.max(outcome_var[:max_TO,0])
+    y_min = np.min(outcome_var[:max_TO,1])
+    y_max = np.max(outcome_var[:max_TO,1])
 
     x_dist = x_max - x_min
     y_dist = y_max - y_min
 
     # Fit Ellipse
-    if flag_useJointAngle == False:
+    if flag_useAngle == False:
 
-        x_min = np.min(pos_neck_inPelvis[:max_TO,0])
-        x_max = np.max(pos_neck_inPelvis[:max_TO,0])
-        y_min = np.min(pos_neck_inPelvis[:max_TO,1])
-        y_max = np.max(pos_neck_inPelvis[:max_TO,1])
+        x_min = np.min(outcome_var[:max_TO,0])
+        x_max = np.max(outcome_var[:max_TO,0])
+        y_min = np.min(outcome_var[:max_TO,1])
+        y_max = np.max(outcome_var[:max_TO,1])
 
         x_dist = x_max - x_min
         y_dist = y_max - y_min
 
-        ellipse_fit_cart = fit_ellipse(pos_neck_inPelvis[min_HS:max_TO,0], pos_neck_inPelvis[min_HS:max_TO,1])
+        ellipse_fit_cart = fit_ellipse(outcome_var[min_HS:max_TO,0], outcome_var[min_HS:max_TO,1])
         ellipse_fit_polr = cart_to_pol(ellipse_fit_cart)
         x_e, y_e = get_ellipse_pts(ellipse_fit_polr)
     else:
         # Flexion/Extension
-        x_min = np.min(pos_neck_inPelvis[:max_TO,2])
-        x_max = np.max(pos_neck_inPelvis[:max_TO,2])
+        x_min = np.min(outcome_var[:max_TO,2])
+        x_max = np.max(outcome_var[:max_TO,2])
         # Lateral Bending
-        y_min = np.min(pos_neck_inPelvis[:max_TO,0])
-        y_max = np.max(pos_neck_inPelvis[:max_TO,0])
+        y_min = np.min(outcome_var[:max_TO,0])
+        y_max = np.max(outcome_var[:max_TO,0])
 
         x_dist = x_max - x_min
         y_dist = y_max - y_min
 
-        ellipse_fit_cart = fit_ellipse(pos_neck_inPelvis[min_HS:max_TO,2], pos_neck_inPelvis[min_HS:max_TO,0])
+        ellipse_fit_cart = fit_ellipse(outcome_var[min_HS:max_TO,2], outcome_var[min_HS:max_TO,0])
         ellipse_fit_polr = cart_to_pol(ellipse_fit_cart)
         x_e, y_e = get_ellipse_pts(ellipse_fit_polr)
 
@@ -467,9 +468,9 @@ for i_csv in range(len(csv_files)):
     plt.close()
 
     # Plot in transverse plane vs frames
-    if flag_useJointAngle == False:
+    if flag_useAngle == False:
         plt.figure()
-        plt.scatter(pos_neck_inPelvis[min_HS:max_TO,0], pos_neck_inPelvis[min_HS:max_TO,1])
+        plt.scatter(outcome_var[min_HS:max_TO,0], outcome_var[min_HS:max_TO,1])
         plt.plot(x_e, y_e)
         clb = plt.colorbar()
         clb.ax.set_title('Frames')
@@ -487,7 +488,7 @@ for i_csv in range(len(csv_files)):
         plt.figure()
         plt.axvline(c='grey', zorder=0)
         plt.axhline(c='grey', zorder=0)
-        plt.scatter(pos_neck_inPelvis[min_HS:max_TO,2], pos_neck_inPelvis[min_HS:max_TO,0], c = norm_frames)
+        plt.scatter(outcome_var[min_HS:max_TO,2], outcome_var[min_HS:max_TO,0], c = norm_frames)
         plt.plot(x_e, y_e, c = 'black')
         plt.scatter(ellipse_fit_polr[0],ellipse_fit_polr[1],c='black')
         clb = plt.colorbar(cmap=norm_frames)
@@ -502,15 +503,15 @@ for i_csv in range(len(csv_files)):
         plt.close()
 
         fig, axs = plt.subplots(2, sharex=True, gridspec_kw={'hspace': 0})
-        axs[0].plot(pos_neck_inPelvis[min_HS:max_TO,2],c='blue')
-        axs[1].plot(pos_neck_inPelvis[min_HS:max_TO,0],c='green')
+        axs[0].plot(outcome_var[min_HS:max_TO,2],c='blue')
+        axs[1].plot(outcome_var[min_HS:max_TO,0],c='green')
         axs[0].set_ylabel('Flex. (+) / Ext. (-) (\N{DEGREE SIGN})')
         axs[1].set_ylabel('L (+) / R (-) Bending (\N{DEGREE SIGN})')
         axs[1].set_xlabel('Frame Number')
 
 
     # # Plot quiver plot
-    # if flag_useJointAngle == False:
+    # if flag_useAngle == False:
     #     plt.figure()
     #     plt.plot(pos_pelvis[min_HS:max_TO,0], pos_pelvis[min_HS:max_TO,1], c='orange')
     #     plt.quiver(pos_pelvis[min_HS:max_TO,0], pos_pelvis[min_HS:max_TO,1], d_neckPelvis[min_HS:max_TO,0], d_neckPelvis[min_HS:max_TO,1],
@@ -534,18 +535,18 @@ for i_csv in range(len(csv_files)):
     #     plt.close()
 
     print(data_path + 'Figures/' + csv_file[0:-12] + ' saved')
-    angLB_df = pd.DataFrame(pos_neck_inPelvis[min_HS:max_TO,0], columns=[csv_file[0:-12] + '_LB'])
-    angAR_df = pd.DataFrame(pos_neck_inPelvis[min_HS:max_TO,1], columns=[csv_file[0:-12] + '_AR'])
-    angFE_df = pd.DataFrame(pos_neck_inPelvis[min_HS:max_TO,2], columns=[csv_file[0:-12] + '_FE'])
+    angLB_df = pd.DataFrame(outcome_var[min_HS:max_TO,0], columns=[csv_file[0:-12] + '_LB'])
+    angAR_df = pd.DataFrame(outcome_var[min_HS:max_TO,1], columns=[csv_file[0:-12] + '_AR'])
+    angFE_df = pd.DataFrame(outcome_var[min_HS:max_TO,2], columns=[csv_file[0:-12] + '_FE'])
     
     ang_T8inGlob = pd.concat([ang_T8inGlob, angLB_df], ignore_index=False, axis=1)
     ang_T8inGlob = pd.concat([ang_T8inGlob, angAR_df], ignore_index=False, axis=1)
     ang_T8inGlob = pd.concat([ang_T8inGlob, angFE_df], ignore_index=False, axis=1)
 
 
-ang_T8inGlob.to_csv(data_path + 'pre_and_6WK_T8inGlob.csv')
+ang_T8inGlob.to_csv(data_path + 'pre_and_6WK_pelinGlob.csv')
 
-if flag_useJointAngle == False:
+if flag_useAngle == False:
     xy_csv_df = pd.DataFrame(data = params, index = csv_files)
     params.to_csv(data_path + 'params_pos.csv')
 else:
