@@ -59,12 +59,7 @@ def check_fft(signal, sampling_rate):
 
 # SETUP
 plt.ioff()
-
-flag_seperateXYZ    = False
-flag_makeGIF        = False
-flag_neckPevlis     = True
-flag_useAngle       = True
-flag_ACFandMP       = False # Compute Autocorreletion and Matrix Profile
+flag_plot = False
 
 # Filtering and Smoothing Parameters
 # For IMU           
@@ -87,13 +82,6 @@ conditions = ['BLN', '6WK']
 data_type = ['seg']
 
 ang_T8inGlob = pd.DataFrame(np.arange(100),columns=['initialise'])
-
-# List .files in directory, loop through them and check for .csv
-# csv_files = glob.glob(data_path + '*sen_eul.csv')
-
-# params = np.zeros([len(csv_files),16])
-# params = pd.DataFrame(columns=['Patient_ID','BLN_Dx', 'BLN_Dy', 'BLN_X_c', 'BLN_Y_c', 'BLN_semi_major', 'BLN_semi_minor','BLN_ecc', 'BLN_X_rot', 'BLN_area', \
-                                # '6WK_Dx', '6WK_Dy', '6WK_X_c', '6WK_Y_c', '6WK_semi_major', '6WK_semi_minor', '6WK_ecc', '6WK_X_rot', '6WK_area'])
 
 for i_ptnt in post_op_ptnts:
      i_ptnt = f"{i_ptnt:03d}"
@@ -185,51 +173,58 @@ for i_ptnt in post_op_ptnts:
             if i_data_type == 'sen':
                 eul_recon_uwr[:,1:2] = - eul_recon_uwr[:,1: 2]
 
-            # Check Euler with plots
-            lim = 270 # 3/2*np.pi
-
-            fig.suptitle(i_ptnt + '_' + i_cond)
-            ax1.plot(eul_x_T8[:], label="raw_euler_" + i_data_type)    
-            # ax1.plot(np.rad2deg(roll[:]),label="RoPiYa")
-            # ax1.plot(eul_recon[:,2],label="ZYX")
-            # ax1.plot(eul_recon_filt[:,2], label="ZYXfilt")
-            ax1.plot(eul_recon_uwr[:,2], label="ZYX_f_U_" + i_data_type)
-            ax1.set_ylim([-lim,lim])
-            ax1.set_title('X')
-
-            ax2.plot(eul_y_T8[:])
-            # ax2.plot(np.rad2deg(pitch[:]))
-            # ax2.plot(eul_recon[:,1])
-            # ax2.plot(eul_recon_filt[:,1])
-            ax2.plot(eul_recon_uwr[:,1])
-            ax2.set_ylim([-lim,lim])
-            ax2.set_yticks([])
-            ax2.set_title('Y')
-
-            ax3.plot(eul_z_T8[:])
-            # ax3.plot(np.rad2deg(yaw[:]))
-            # ax3.plot(eul_recon[:,0])
-            # ax3.plot(eul_recon_filt[:,0])
-            ax3.plot(eul_recon_uwr[:,0])
-            ax3.set_ylim([-lim,lim])
-            ax3.set_yticks([])
-            ax3.set_title('Z')
+            ang_T8inGlob = pd.concat([ang_T8inGlob, eul_recon_uwr[:,1]], ignore_index=False, axis=1)
+            ang_T8inGlob = pd.concat([ang_T8inGlob, eul_recon_uwr[:,0]], ignore_index=False, axis=1)
+            ang_T8inGlob = pd.concat([ang_T8inGlob, eul_recon_uwr[:,2]], ignore_index=False, axis=1)
             
-            plt.plot(eul_x_T8,eul_y_T8)
-            # plt.plot(eul_recon[:,2],eul_recon[:,1], label="ZYXfilt")
-            plt.plot(eul_recon_uwr[:,2],eul_recon_uwr[:,1], label="ZYX_f_U_" + i_data_type)
-            plt.xlim(-15, 25)
-            plt.ylim(-20, 20) 
-            plt.title(i_ptnt + '_' + i_cond)
-            plt.xlabel('X rot')
-            plt.xlabel('Y rot')
             
-        fig.legend()
-        fig.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/recon_' + i_ptnt + '_' + i_cond + '.pdf')
+            ## Plot ##
+            if flag_plot == True:# Check Euler with plots
+                lim = 270 # 3/2*np.pi
 
-        plt.legend()
-        plt.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/XvsY_' + i_ptnt + '_' + i_cond + '.pdf')
-        print("--- Plotted: " + csv_file[:-4] + ' ---')
+                fig.suptitle(i_ptnt + '_' + i_cond)
+                ax1.plot(eul_x_T8[:], label="raw_euler_" + i_data_type)    
+                # ax1.plot(np.rad2deg(roll[:]),label="RoPiYa")
+                # ax1.plot(eul_recon[:,2],label="ZYX")
+                # ax1.plot(eul_recon_filt[:,2], label="ZYXfilt")
+                ax1.plot(eul_recon_uwr[:,2], label="ZYX_f_U_" + i_data_type)
+                ax1.set_ylim([-lim,lim])
+                ax1.set_title('X')
+
+                ax2.plot(eul_y_T8[:])
+                # ax2.plot(np.rad2deg(pitch[:]))
+                # ax2.plot(eul_recon[:,1])
+                # ax2.plot(eul_recon_filt[:,1])
+                ax2.plot(eul_recon_uwr[:,1])
+                ax2.set_ylim([-lim,lim])
+                ax2.set_yticks([])
+                ax2.set_title('Y')
+
+                ax3.plot(eul_z_T8[:])
+                # ax3.plot(np.rad2deg(yaw[:]))
+                # ax3.plot(eul_recon[:,0])
+                # ax3.plot(eul_recon_filt[:,0])
+                ax3.plot(eul_recon_uwr[:,0])
+                ax3.set_ylim([-lim,lim])
+                ax3.set_yticks([])
+                ax3.set_title('Z')
+                
+                plt.plot(eul_x_T8,eul_y_T8)
+                # plt.plot(eul_recon[:,2],eul_recon[:,1], label="ZYXfilt")
+                plt.plot(eul_recon_uwr[:,2],eul_recon_uwr[:,1], label="ZYX_f_U_" + i_data_type)
+                plt.xlim(-15, 25)
+                plt.ylim(-20, 20) 
+                plt.title(i_ptnt + '_' + i_cond)
+                plt.xlabel('X rot')
+                plt.xlabel('Y rot')
+            
+        if flag_plot == True:
+            fig.legend()
+            fig.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/recon_' + i_ptnt + '_' + i_cond + '.pdf')
+
+            plt.legend()
+            plt.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/XvsY_' + i_ptnt + '_' + i_cond + '.pdf')
+            print("--- Plotted: " + csv_file[:-4] + ' ---')
 
 
         # ang_T8inGlob.to_csv(data_path + 'pre_and_6WK_pelinGlob.csv')
