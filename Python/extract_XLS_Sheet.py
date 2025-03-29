@@ -10,13 +10,13 @@ for file in os.listdir('../In/Box_data/'):
             # segment_pos = pd.read_excel(root + file, sheet_name='Segment Position') # , skiprows=[0], usecols="B:BR"
             # segment_pos.to_csv(file_n, header=True, index=False) # 
                 
-            # file_n = root + file[0:7] + '_seg_qua.csv'          
-            # segment_qua = pd.read_excel(root + file, sheet_name='Segment Orientation - Quat') # , skiprows=[0], usecols="B:BR"
-            # segment_qua.to_csv(file_n, header=True, index=False) #   
+            file_n = root + file[0:7] + '_seg_qua.csv'          
+            segment_qua = pd.read_excel(root + file, sheet_name='Segment Orientation - Quat') # , skiprows=[0], usecols="B:BR"
+            segment_qua.to_csv(file_n, header=True, index=False) #   
 
-            # file_n = root + file[0:7] + '_seg_eul.csv'          
-            # segment_eul = pd.read_excel(root + file, sheet_name='Segment Orientation - Euler') # , skiprows=[0], usecols="B:BR"
-            # segment_eul.to_csv(file_n, header=True, index=False) #         
+            file_n = root + file[0:7] + '_seg_eul.csv'          
+            segment_eul = pd.read_excel(root + file, sheet_name='Segment Orientation - Euler') # , skiprows=[0], usecols="B:BR"
+            segment_eul.to_csv(file_n, header=True, index=False) #         
 
             # file_n = root + file[0:7] + '_seg_acc.csv'          
             # segment_acc = pd.read_excel(root + file, sheet_name='Sensor Free Acceleration') # , skiprows=[0], usecols="B:BR"
