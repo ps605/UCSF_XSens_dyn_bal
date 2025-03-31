@@ -18,7 +18,7 @@ from lsqEllipse import *
 plt.ioff()
 flag_seperateXYZ    = False
 flag_makeGIF        = False
-flag_neckPevlis     = True
+flag_neckPevlis     = False
 flag_useAngle       = True
 flag_ACFandMP       = False # Compute Autocorreletion and Matrix Profile
 
@@ -84,7 +84,7 @@ for i_csv in range(len(csv_files)):
     data_q0123 = pd.read_csv(trial_name + '_qua.csv')  
     data_q0123 = data_q0123.drop(columns='Frame')
     # Load in tracked 3D IMU Orientation and pass to array (euler)    
-    data_eul = pd.read_csv(trial_name[:-3] + 'sen_ang.csv')  
+    data_eul = pd.read_csv(trial_name[:-3] + 'sen_eul.csv')  
     data_eul = data_eul.drop(columns='Frame')
     # Load in tracked 3D IMU Free Accelerations and pass to array (quaternions)    
     data_acc = pd.read_csv(trial_name + '_acc.csv')  
