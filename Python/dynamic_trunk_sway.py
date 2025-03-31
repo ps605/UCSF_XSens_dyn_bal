@@ -142,8 +142,8 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
        ## Identify Gait events (Heel Strike HS; Toe Off TO)
     
     # Find turn
-    idx_turn = np.min(np.diff(angle_T8)>45)
-    
+    angle_T8_z_peaks, _ = signal.find_peaks(np.abs(angle_T8[:,0]), distance=100, height=100)
+    idx_turn = angle_T8_z_peaks[0]
     # Find closest previous toe off (gyration min) to turn
     near_L = np.where((idx_turn - min_gyr_L)>0)[0]
     near_R = np.where((idx_turn - min_gyr_R)>0)[0]
@@ -167,17 +167,8 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
     # Find first HS
     min_HS = np.minimum(np.min(HS_L), np.min(HS_R))
 
-    # Get Foot contact ranges
-    n_TO_L = TO_L.shape[0]
-    n_TO_R = TO_R.shape[0]
+    return max_TO, min_HS
 
-    foot_contact_L = np.vstack((HS_L[:n_TO_L], TO_L)).T
-    foot_contact_R = np.vstack((HS_R[:n_TO_R], TO_R)).T
-
-    if min_HS in HS_L:
-        first_HS = 'L'
-    elif min_HS in HS_R:
-        first_HS = 'R'
 
 # SETUP
 plt.ioff()
@@ -202,7 +193,7 @@ post_op_ptnts = [2, 6, 8, 9, 16, 17, 18, 19, 22, 24, 27, \
                  83, 102, 112] # 99, 127, 146
 
 conditions = ['BLN', '6WK']
-data_type = ['seg', 'sen']
+data_type = ['seg']
 
 ang_T8inGlob = pd.DataFrame(np.arange(100),columns=['initialise'])
 
@@ -238,8 +229,8 @@ for i_ptnt in post_op_ptnts:
             data_eul = pd.read_csv(trial_name[:-3] + 'eul.csv')  
             data_eul = data_eul.drop(columns='Frame')
             # Load in tracked 3D IMU Free Accelerations and pass to array 
-            # data_acc = pd.read_csv(trial_name + '_acc.csv')  
-            # data_acc = data_acc.drop(columns='Frame')
+            data_acc = pd.read_csv(trial_name[:-3] + 'acc.csv')  
+            data_acc = data_acc.drop(columns='Frame')
 
             ## --- Get quaternion info ---
             # Get indeces of Pelvis (unused as of 20250328) and T8.
@@ -320,6 +311,7 @@ for i_ptnt in post_op_ptnts:
             # ang_T8inGlob = pd.concat([ang_T8inGlob, eul_recon_uwr[:,2]], ignore_index=False, axis=1)
             
             # Identify start(first step) and stop (180 turn)
+            max_TO, min_HS = id_turn(data_eul, data_acc, eul_recon_uwr, flag_ACFandMP)
 
             ## Plot ##
             if flag_plot == True:# Check Euler with plots
@@ -328,7 +320,7 @@ for i_ptnt in post_op_ptnts:
                 z_ang_lim = 270
 
                 fig.suptitle(i_ptnt + '_' + i_cond)
-                ax1.plot(eul_x_T8[:], label="raw_euler_" + i_data_type)    
+                ax1.plot(eul_x_T8[min_HS:max_TO], label="raw_euler_" + i_data_type)    
                 # ax1.plot(np.rad2deg(roll[:]),label="RoPiYa")
                 # ax1.plot(eul_recon[:,2],label="ZYX")
                 # ax1.plot(eul_recon_filt[:,2], label="ZYXfilt")
@@ -336,7 +328,7 @@ for i_ptnt in post_op_ptnts:
                 ax1.set_ylim([-x_ang_lim,x_ang_lim])
                 ax1.set_title('X')
 
-                ax2.plot(eul_y_T8[:])
+                ax2.plot(eul_y_T8[min_HS:max_TO])
                 # ax2.plot(np.rad2deg(pitch[:]))
                 # ax2.plot(eul_recon[:,1])
                 # ax2.plot(eul_recon_filt[:,1])
@@ -345,7 +337,7 @@ for i_ptnt in post_op_ptnts:
                 ax2.set_yticks([])
                 ax2.set_title('Y')
 
-                ax3.plot(eul_z_T8[:])
+                ax3.plot(eul_z_T8[min_HS:max_TO])
                 # ax3.plot(np.rad2deg(yaw[:]))
                 # ax3.plot(eul_recon[:,0])
                 # ax3.plot(eul_recon_filt[:,0])
@@ -354,9 +346,9 @@ for i_ptnt in post_op_ptnts:
                 ax3.set_yticks([-z_ang_lim, z_ang_lim])
                 ax3.set_title('Z')
                 
-                plt.plot(eul_x_T8,eul_y_T8)
+                plt.plot(eul_x_T8[min_HS:max_TO],eul_y_T8[min_HS:max_TO])
                 # plt.plot(eul_recon[:,2],eul_recon[:,1], label="ZYXfilt")
-                plt.plot(eul_recon_uwr[:,2],eul_recon_uwr[:,1], label="ZYX_f_U_" + i_data_type)
+                # plt.plot(eul_recon_uwr[:,2],eul_recon_uwr[:,1], label="ZYX_f_U_" + i_data_type)
                 plt.xlim(-15, 25)
                 plt.ylim(-20, 20) 
                 plt.title(i_ptnt + '_' + i_cond)
@@ -365,10 +357,10 @@ for i_ptnt in post_op_ptnts:
             
         if flag_plot == True:
             fig.legend()
-            fig.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/recon_' + i_ptnt + '_' + i_cond + '.pdf')
+            fig.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/HStoTO_recon_' + i_ptnt + '_' + i_cond + '.pdf')
 
             plt.legend()
-            plt.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/XvsY_' + i_ptnt + '_' + i_cond + '.pdf')
+            plt.savefig('../Out/Analysis/Paper/Figures/imu_signal_comp/HStoTO_XvsY_' + i_ptnt + '_' + i_cond + '.pdf')
             print("--- Plotted: " + csv_file[:-4] + ' ---')
 
 
