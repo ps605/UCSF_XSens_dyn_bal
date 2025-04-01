@@ -142,8 +142,24 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
        ## Identify Gait events (Heel Strike HS; Toe Off TO)
     
     # Find turn
-    angle_T8_z_peaks, _ = signal.find_peaks(np.abs(angle_T8[:,0]), distance=100, height=100)
-    idx_turn = angle_T8_z_peaks[0]
+    ang = angle_T8[:,0]
+    d2t_ang = np.gradient(np.gradient(gaussian_filter1d(ang,100)))
+    plt.figure()
+    plt.plot(d2t_ang/np.max(d2t_ang))
+    plt.plot(ang)
+
+    # Find inflection points
+    infls = np.where(np.diff(np.sign(d2t_ang)))[0]
+    for i, infl in enumerate(infls, 1):
+     plt.axvline(x=infl, color='k')
+
+    # Select inflection point that is about baseline threshold of heading angle
+    infl_turn = np.where(np.abs(ang[infls])>50)[0][0]
+    idx_turn = infl_turn
+
+    # angle_T8_z_peaks, _ = signal.find_peaks(np.abs(angle_T8[:,0]), distance=100, height=100)
+    # idx_turn = angle_T8_z_peaks[0]
+    
     # Find closest previous toe off (gyration min) to turn
     near_L = np.where((idx_turn - min_gyr_L)>0)[0]
     near_R = np.where((idx_turn - min_gyr_R)>0)[0]
@@ -152,6 +168,9 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
     HS_R = max_gyr_R[near_R]
     TO_L = min_gyr_L[near_L]
     TO_R = min_gyr_R[near_R]
+
+    plt.scatter(HS_R, ang[HS_R])
+    plt.scatter(HS_L, ang[HS_L])
 
     # Tidy up gait event so HS is first (removes toe off from standing)
     if TO_L[0] < HS_L[0]:
@@ -166,13 +185,15 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
 
     # Find first HS
     min_HS = np.minimum(np.min(HS_L), np.min(HS_R))
-
+    plt.axvline(x=min_HS, color='g')
+    plt.axvline(x=max_TO, color='r')
+    
     return max_TO, min_HS
 
 
 # SETUP
 plt.ioff()
-flag_plot = True
+flag_plot = False
 flag_ACFandMP = False
 
 # Filtering and Smoothing Parameters
