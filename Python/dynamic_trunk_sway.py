@@ -144,22 +144,19 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
     # Find turn
     ang = angle_T8[:,0]
     d2t_ang = np.gradient(np.gradient(gaussian_filter1d(ang,100)))
-    plt.figure()
-    plt.plot(d2t_ang/np.max(d2t_ang))
-    plt.plot(ang)
+
 
     # Find inflection points
     infls = np.where(np.diff(np.sign(d2t_ang)))[0]
-    for i, infl in enumerate(infls, 1):
-     plt.axvline(x=infl, color='k')
+
 
     # Select inflection point that is about baseline threshold of heading angle
-    infl_turn = np.where(np.abs(ang[infls])>50)[0][0]
-    idx_turn = infl_turn
-
+    infl_turn = np.where(np.abs(ang[infls])>20)[0][0]
+    idx_turn = infls[infl_turn]
+    
     # angle_T8_z_peaks, _ = signal.find_peaks(np.abs(angle_T8[:,0]), distance=100, height=100)
     # idx_turn = angle_T8_z_peaks[0]
-    
+
     # Find closest previous toe off (gyration min) to turn
     near_L = np.where((idx_turn - min_gyr_L)>0)[0]
     near_R = np.where((idx_turn - min_gyr_R)>0)[0]
@@ -168,9 +165,6 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
     HS_R = max_gyr_R[near_R]
     TO_L = min_gyr_L[near_L]
     TO_R = min_gyr_R[near_R]
-
-    plt.scatter(HS_R, ang[HS_R])
-    plt.scatter(HS_L, ang[HS_L])
 
     # Tidy up gait event so HS is first (removes toe off from standing)
     if TO_L[0] < HS_L[0]:
@@ -185,15 +179,26 @@ def id_turn(data_eul, data_acc, angle_T8, flag_ACFandMP):
 
     # Find first HS
     min_HS = np.minimum(np.min(HS_L), np.min(HS_R))
-    plt.axvline(x=min_HS, color='g')
-    plt.axvline(x=max_TO, color='r')
     
+    # plt.figure()
+    # # plt.plot(d2t_ang/np.max(d2t_ang))
+    # plt.plot(ang)
+    # for i, infl in enumerate(infls, 1):
+    #  plt.axvline(x=infl, color='k')
+    # plt.axvline(x=idx_turn, color='b')
+    # plt.scatter(HS_R, ang[HS_R],c='b')
+    # plt.scatter(HS_L, ang[HS_L],c='r')
+    # plt.scatter(TO_R, ang[TO_R],c='b')
+    # plt.scatter(TO_L, ang[TO_L],c='r')
+    # plt.axvline(x=min_HS, color='g')
+    # plt.axvline(x=max_TO, color='r')
+
     return max_TO, min_HS
 
 
 # SETUP
 plt.ioff()
-flag_plot = False
+flag_plot = True
 flag_ACFandMP = False
 
 # Filtering and Smoothing Parameters
@@ -208,6 +213,7 @@ b_imu, a_imu = signal.butter(f_order_imu, f_nyquist_imu, btype='lowpass')
 
 # Where to read data from
 data_path = '../In/Box_data/'
+data_path_out = '../Out/Analysis/Paper/'
 post_op_ptnts = [2, 6, 8, 9, 16, 17, 18, 19, 22, 24, 27, \
                  31, 33, 34, 36, 38, 39, 44, 45, 46, 48, \
                  51, 52, 55, 60, 62, 64, 67, 70, 71, 79, \
@@ -290,11 +296,11 @@ for i_ptnt in post_op_ptnts:
             ori_eul = np.array(data_eul, dtype='float')
 
             # Split to x, y, z 
-            eul_x_T8 = ori_eul[:,idx_T8_e]
-            eul_y_T8 = ori_eul[:,idx_T8_e+1]
+            eul_x_T8 = ori_eul[:,idx_T8_e] # R+/L- lateral bending
+            eul_y_T8 = ori_eul[:,idx_T8_e+1] # Flex + / Ext -
             eul_z_T8 = ori_eul[:,idx_T8_e+2]
 
-        # Initialise unwrap array
+            # Initialise unwrap array
             eul_recon_uwr = np.array([0.000]*ori_q0_T8.__len__()*3).reshape(ori_q0_T8.__len__(),3)
             # Unwrap 
             eul_recon_uwr[:,0] = np.unwrap(eul_recon[:,0]) 
@@ -317,12 +323,17 @@ for i_ptnt in post_op_ptnts:
             eul_recon = np.rad2deg(eul_recon)
             
             # Filter
-            eul_x_T8 = signal.filtfilt(b_imu,a_imu,eul_x_T8,0)
-            eul_y_T8 = signal.filtfilt(b_imu,a_imu,eul_y_T8,0)
-            eul_z_T8 = signal.filtfilt(b_imu,a_imu,eul_z_T8,0)
+            # # Butter
+            # eul_x_T8 = signal.filtfilt(b_imu,a_imu,eul_x_T8,0)
+            # eul_y_T8 = signal.filtfilt(b_imu,a_imu,eul_y_T8,0)
+            # eul_z_T8 = signal.filtfilt(b_imu,a_imu,eul_z_T8,0)
+            # eul_recon_uwr = signal.filtfilt(b_imu,a_imu,np.rad2deg(eul_recon_uwr),0)
 
-
-            eul_recon_uwr = signal.filtfilt(b_imu,a_imu,np.rad2deg(eul_recon_uwr),0)
+            # # Gausian
+            eul_x_T8 = gaussian_filter1d(eul_x_T8,5)
+            eul_y_T8 = gaussian_filter1d(eul_y_T8,5)
+            eul_z_T8 = gaussian_filter1d(eul_z_T8,5)
+            eul_recon_uwr = gaussian_filter1d(np.rad2deg(eul_recon_uwr),5)
 
             if i_data_type == 'sen':
                 eul_recon_uwr[:,1:2] = - eul_recon_uwr[:,1: 2]
@@ -349,7 +360,7 @@ for i_ptnt in post_op_ptnts:
                 ax1.scatter(min_HS,eul_x_T8[min_HS], color='red')
                 ax1.scatter(max_TO,eul_x_T8[max_TO], color='orange')
                 ax1.set_ylim([-x_ang_lim,x_ang_lim])
-                ax1.set_title('X')
+                ax1.set_title('X - Lat Bend')
 
                 ax2.plot(eul_y_T8[:])
                 # ax2.plot(np.rad2deg(pitch[:]))
@@ -360,7 +371,7 @@ for i_ptnt in post_op_ptnts:
                 ax2.scatter(max_TO,eul_y_T8[max_TO], color='orange')
                 ax2.set_ylim([-x_ang_lim,x_ang_lim])
                 ax2.set_yticks([])
-                ax2.set_title('Y')
+                ax2.set_title('Y  - Flex Ext')
 
                 ax3.plot(eul_z_T8[:])
                 # ax3.plot(np.rad2deg(yaw[:]))
@@ -371,16 +382,28 @@ for i_ptnt in post_op_ptnts:
                 ax3.scatter(max_TO,eul_z_T8[max_TO], color='orange')
                 ax3.set_ylim([-z_ang_lim,z_ang_lim])
                 ax3.set_yticks([-z_ang_lim, z_ang_lim])
-                ax3.set_title('Z')
+                ax3.set_title('Z - Heading')
                 
-                plt.plot(eul_x_T8[min_HS:max_TO],eul_y_T8[min_HS:max_TO])
+                plt.plot(eul_y_T8[min_HS:max_TO], - eul_x_T8[min_HS:max_TO],label="raw_euler_" + i_data_type)
                 # plt.plot(eul_recon[:,2],eul_recon[:,1], label="ZYXfilt")
                 # plt.plot(eul_recon_uwr[:,2],eul_recon_uwr[:,1], label="ZYX_f_U_" + i_data_type)
                 plt.xlim(-15, 25)
                 plt.ylim(-20, 20) 
                 plt.title(i_ptnt + '_' + i_cond)
-                plt.xlabel('X rot')
-                plt.xlabel('Y rot')
+                plt.xlabel('Ext (-)/ Flex (+)')
+                plt.ylabel('Right (-) / Left (+)')
+
+                data_x = {i_ptnt + '_' + i_cond + '_LB': - eul_x_T8[min_HS:max_TO]}
+                eul_x_t8_df = pd.DataFrame(data_x)
+                ang_T8inGlob = pd.concat([ang_T8inGlob, eul_x_t8_df], ignore_index=False, axis=1)
+               
+                data_y = {i_ptnt + '_' + i_cond + '_FE': eul_y_T8[min_HS:max_TO]}
+                eul_y_t8_df = pd.DataFrame(data_y)
+                ang_T8inGlob = pd.concat([ang_T8inGlob, eul_y_t8_df], ignore_index=False, axis=1)
+               
+                data_z = {i_ptnt + '_' + i_cond + '_AR': eul_z_T8[min_HS:max_TO]}
+                eul_z_t8_df = pd.DataFrame(data_z)
+                ang_T8inGlob = pd.concat([ang_T8inGlob, eul_z_t8_df], ignore_index=False, axis=1)
             
         if flag_plot == True:
             fig.legend()
@@ -391,11 +414,5 @@ for i_ptnt in post_op_ptnts:
             print("--- Plotted: " + csv_file[:-4] + ' ---')
 
 
-        # ang_T8inGlob.to_csv(data_path + 'pre_and_6WK_pelinGlob.csv')
+ang_T8inGlob.to_csv(data_path_out + 'BLN_6WK_T8seg_inGlob.csv')
 
-        # if flag_useAngle == False:
-        #     xy_csv_df = pd.DataFrame(data = params, index = csv_files)
-        #     params.to_csv(data_path + 'params_pos.csv')
-        # else:
-        #     xy_csv_df = pd.DataFrame(data = params, index = csv_files)
-        #     params.to_csv(data_path + 'params_ang_T8inPel.csv')
