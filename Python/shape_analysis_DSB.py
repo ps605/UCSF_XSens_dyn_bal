@@ -21,7 +21,7 @@ flag_plotGIF     = False
 flag_plotConHull = False
 
 # Where to read data from
-data_path = '../In/Box_data/'
+data_path = '../Out/Analysis/Paper/'
 data_path_out = '../Out/Analysis/Paper/'
 
 plt.ioff()
@@ -30,7 +30,7 @@ plt.ioff()
 post_op_ptnts = [2, 6, 8, 9, 16, 17, 18, 19, 22, 24, 27, \
                  31, 33, 34, 36, 38, 39, 44, 45, 46, 48, \
                  51, 52, 55, 60, 62, 64, 67, 70, 71, 79, \
-                 83, 99, 102, 112, 127, 146]
+                 83, 102, 112] # 99, 127, 146
 
 
 size = 2*post_op_ptnts.__len__()
@@ -50,7 +50,7 @@ red_rgb = np.array([250, 95, 85])/255
 blu_rgb = np.array([41, 128, 185])/255
 
 # Load data
-data_T8inGlob = pd.read_csv(data_path + 'pre_and_6WK_T8inGlob.csv')
+data_T8inGlob = pd.read_csv(data_path + 'BLN_6WK_T8inGlob_seg.csv') # 'pre_and_6WK_T8inGlob.csv'
 T8inGlob = np.array(data_T8inGlob, dtype='float')
 
 ptnt_count = -1
@@ -65,23 +65,29 @@ for ptnt_ID in post_op_ptnts:
     ptnt_ID_BLN = ptnt_ID_str + '_BLN'
     ptnt_ID_6WK = ptnt_ID_str + '_6WK'
 
-    idx_BLN = data_T8inGlob.columns.get_loc(ptnt_ID_BLN + '_LB')
-    idx_6WK = data_T8inGlob.columns.get_loc(ptnt_ID_6WK + '_LB')
+    idx_BLN_FE = data_T8inGlob.columns.get_loc(ptnt_ID_BLN + '_FE')
+    idx_BLN_LB = data_T8inGlob.columns.get_loc(ptnt_ID_BLN + '_LB')
+    idx_BLN_AR = data_T8inGlob.columns.get_loc(ptnt_ID_BLN + '_AR')
 
-    T8inGlob_BLN = T8inGlob[:,idx_BLN:idx_BLN+3]
+    idx_6WK_FE = data_T8inGlob.columns.get_loc(ptnt_ID_6WK + '_FE')
+    idx_6WK_LB = data_T8inGlob.columns.get_loc(ptnt_ID_6WK + '_LB')
+    idx_6WK_AR = data_T8inGlob.columns.get_loc(ptnt_ID_6WK + '_AR')
+
+
+    # T8inGlob_BLN = T8inGlob[:,idx_BLN:idx_BLN+3]
     
-    T8inGlob_6WK = T8inGlob[:,idx_6WK:idx_6WK+3]
+    # T8inGlob_6WK = T8inGlob[:,idx_6WK:idx_6WK+3]
     
 
     # Remove NaNs
-    ang_FE_BLN = T8inGlob_BLN[:,2]
+    ang_FE_BLN = T8inGlob[:,idx_BLN_FE]
     ang_FE_BLN = ang_FE_BLN[~np.isnan(ang_FE_BLN)]
-    ang_LB_BLN = T8inGlob_BLN[:,0]
+    ang_LB_BLN = T8inGlob[:,idx_BLN_LB]
     ang_LB_BLN = ang_LB_BLN[~np.isnan(ang_LB_BLN)]
 
-    ang_FE_6WK = T8inGlob_6WK[:,2]
+    ang_FE_6WK = T8inGlob[:,idx_6WK_FE]
     ang_FE_6WK = ang_FE_6WK[~np.isnan(ang_FE_6WK)]
-    ang_LB_6WK = T8inGlob_6WK[:,0]
+    ang_LB_6WK = T8inGlob[:,idx_6WK_LB]
     ang_LB_6WK = ang_LB_6WK[~np.isnan(ang_LB_6WK)]
 
     rows_BLN,  = np.shape(ang_FE_BLN)
@@ -124,7 +130,15 @@ for ptnt_ID in post_op_ptnts:
 
         bln_LB_range[ptnt_count,0] = ang_LB_BLN.min()
         bln_LB_range[ptnt_count,1] = ang_LB_BLN.max()
-
+        
+        plt.xlim(-15, 25)
+        plt.ylim(-20, 20) 
+        plt.axvline(c='grey', zorder=0)
+        plt.axhline(c='grey', zorder=0)
+        plt.xlabel('Flexion (+) / Extension (-) (\N{DEGREE SIGN})')
+        plt.ylabel('Left (+) / Right (-) Lateral Bending (\N{DEGREE SIGN})') 
+        plt.title(ptnt_ID_str + '_BLN')       
+        plt.savefig(data_path_out + 'Figures/KDE/KDE_'  + ptnt_ID_str + '_T8Global_BLN.pdf')
         plt.close()
 
         # 6WK POST-OP 
@@ -160,6 +174,29 @@ for ptnt_ID in post_op_ptnts:
 
         _6wk_LB_range[ptnt_count,0] = ang_LB_6WK.min()
         _6wk_LB_range[ptnt_count,1] = ang_LB_6WK.max()
+       
+        plt.xlim(-15, 25)
+        plt.ylim(-20, 20) 
+        plt.axvline(c='grey', zorder=0)
+        plt.axhline(c='grey', zorder=0)
+        plt.xlabel('Flexion (+) / Extension (-) (\N{DEGREE SIGN})')
+        plt.ylabel('Left (+) / Right (-) Lateral Bending (\N{DEGREE SIGN})') 
+        plt.title(ptnt_ID_str + '_6WK')       
+        plt.savefig(data_path_out + 'Figures/KDE/KDE_'  + ptnt_ID_str + '_T8Global_6WK.pdf')
+        plt.close()
+
+        sns.kdeplot(x=ang_FE_BLN, y=ang_LB_BLN, levels=[0.25, 0.50, 0.75, 1], fill='True', color="r", linewidths=1, label='BLN')
+        sns.kdeplot(x=ang_FE_6WK, y=ang_LB_6WK, levels=[0.25, 0.50, 0.75, 1], fill='True', color="b", linewidths=1, label='6WK')
+        plt.xlim(-15, 25)
+        plt.ylim(-20, 20) 
+        plt.axvline(c='grey', zorder=0)
+        plt.axhline(c='grey', zorder=0)
+        plt.xlabel('Flexion (+) / Extension (-) (\N{DEGREE SIGN})')
+        plt.ylabel('Left (+) / Right (-) Lateral Bending (\N{DEGREE SIGN})') 
+        plt.title(ptnt_ID_str)       
+        plt.legend()
+        plt.savefig(data_path_out + 'Figures/KDE/KDE_'  + ptnt_ID_str + '_T8Global_comp.pdf')
+        plt.close()
     
     # make GIF
     if flag_plotGIF:
