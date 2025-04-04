@@ -217,7 +217,7 @@ data_path_out = '../Out/Analysis/Paper/'
 post_op_ptnts = [2, 6, 8, 9, 16, 17, 18, 19, 22, 24, 27, \
                  31, 33, 34, 36, 38, 39, 44, 45, 46, 48, \
                  51, 52, 55, 60, 62, 64, 67, 70, 71, 79, \
-                 83, 102, 112] # 99, 127, 146
+                 83,99, 102, 127, 112, 146] # 99, 127, 146
 
 conditions = ['BLN', '6WK']
 data_type = ['seg']
@@ -239,9 +239,9 @@ for i_ptnt in post_op_ptnts:
         for i_data_type in data_type:
 
             ## --- Get base trial name ---
-            csv_path = data_path + i_ptnt + '_' + i_cond + '_' + i_data_type + '_eul.csv'
+            csv_path = data_path + i_ptnt + '_' + i_cond 
             csv_file = os.path.basename(csv_path)
-            trial_name = data_path + csv_file[:-4] #'IMU_Segment_pos_xyz'
+            trial_name = data_path + csv_file #'IMU_Segment_pos_xyz'
             # id_int = int(csv_file[0:3])
             
             # if not id_int in post_op_ptnts:
@@ -250,13 +250,13 @@ for i_ptnt in post_op_ptnts:
             ## --- Get IMU data ---
 
             # Load in tracked 3D IMU Orientation and pass to array (quaternions)    
-            data_q0123 = pd.read_csv(trial_name[:-3] + 'qua.csv')  
+            data_q0123 = pd.read_csv(csv_path + '_' + i_data_type + '_qua.csv')  
             data_q0123 = data_q0123.drop(columns='Frame')
             # Load in tracked 3D IMU Orientation and pass to array (euler)    
-            data_eul = pd.read_csv(trial_name[:-3] + 'eul.csv')  
+            data_eul = pd.read_csv(csv_path + '_' + i_data_type +'_eul.csv')  
             data_eul = data_eul.drop(columns='Frame')
             # Load in tracked 3D IMU Free Accelerations and pass to array 
-            data_acc = pd.read_csv(trial_name[:-3] + 'acc.csv')  
+            data_acc = pd.read_csv(csv_path + '_sen_acc.csv')  
             data_acc = data_acc.drop(columns='Frame')
 
             ## --- Get quaternion info ---

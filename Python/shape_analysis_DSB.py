@@ -30,7 +30,7 @@ plt.ioff()
 post_op_ptnts = [2, 6, 8, 9, 16, 17, 18, 19, 22, 24, 27, \
                  31, 33, 34, 36, 38, 39, 44, 45, 46, 48, \
                  51, 52, 55, 60, 62, 64, 67, 70, 71, 79, \
-                 83, 102, 112] # 99, 127, 146
+                 83, 99, 102, 112, 127, 146] # 99, 127, 146
 
 
 size = 2*post_op_ptnts.__len__()
@@ -50,7 +50,7 @@ red_rgb = np.array([250, 95, 85])/255
 blu_rgb = np.array([41, 128, 185])/255
 
 # Load data
-data_T8inGlob = pd.read_csv(data_path + 'BLN_6WK_T8inGlob_seg.csv') # 'pre_and_6WK_T8inGlob.csv'
+data_T8inGlob = pd.read_csv(data_path + 'BLN_6WK_T8seg_inGlob.csv') # 'pre_and_6WK_T8inGlob.csv'
 T8inGlob = np.array(data_T8inGlob, dtype='float')
 
 ptnt_count = -1
@@ -101,16 +101,17 @@ for ptnt_ID in post_op_ptnts:
         plt.scatter(ang_FE_BLN, ang_LB_BLN, c = np.arange(rows_BLN), cmap='Reds', s=0.50, alpha=0.75)
 
         # Get centroid of 90th percentile region
-        pth_bln = bln_kde.collections[-1].get_paths()
-        verts_in_bln = pth_bln[0].vertices
-        x = verts_in_bln[:,0]
-        y = verts_in_bln[:,1]
-        mean_x, mean_y = verts_in_bln.mean(axis=0)
+        # pth_bln = bln_kde.collections[-1].get_paths()
+        # verts_in_bln = pth_bln[0].vertices
+        # x = verts_in_bln[:,0]
+        # y = verts_in_bln[:,1]
+        # mean_x, mean_y = verts_in_bln.mean(axis=0)
         # plt.scatter(x, y, c='b', s=1)
         # plt.scatter(mean_x, mean_y, c='r', edgecolors='black')
 
-        bln_kde_centroid[ptnt_count,0] = mean_x
-        bln_kde_centroid[ptnt_count,1] = mean_y
+        # Get average FE and LB
+        bln_kde_centroid[ptnt_count,0] = ang_FE_BLN.mean()
+        bln_kde_centroid[ptnt_count,1] = ang_LB_BLN.mean()
         # plt.scatter(x, y, c='b', s=1)
         # plt.scatter(mean_x, mean_y, c='r', edgecolors='black')
 
@@ -118,7 +119,7 @@ for ptnt_ID in post_op_ptnts:
         bln_prob_area = 0
         for bln_pths in bln_kde.collections[0].get_paths():
             bln_verts = bln_pths.vertices
-            # plt.scatter(bln_verts[:,0], bln_verts[:,1],c='r', s=1)         
+            # plt.scatter(bln_verts[:,0], bln_verts[:,1],c='g', s=1)         
             poly_verts = Polygon(bln_verts)
             poly_area = poly_verts.area
             bln_prob_area = bln_prob_area + poly_area
@@ -146,16 +147,16 @@ for ptnt_ID in post_op_ptnts:
         _6wk_kde_kde = sns.kdeplot(x=ang_FE_6WK, y=ang_LB_6WK, levels=[0.25, 0.50, 0.75, 1], fill='True', color="b", linewidths=1)
         plt.scatter(ang_FE_6WK, ang_LB_6WK, c = np.arange(rows_6WK), cmap='Blues', s=0.50, alpha=0.75)
 
-        pth_6wk = _6wk_kde_kde.collections[-1].get_paths()
-        verts_in_6wk = pth_6wk[0].vertices
-        x = verts_in_6wk[:,0]
-        y = verts_in_6wk[:,1]
-        mean_x, mean_y = verts_in_6wk.mean(axis=0)
+        # pth_6wk = _6wk_kde_kde.collections[-1].get_paths()
+        # verts_in_6wk = pth_6wk[0].vertices
+        # x = verts_in_6wk[:,0]
+        # y = verts_in_6wk[:,1]
+        # mean_x, mean_y = verts_in_6wk.mean(axis=0)
         # plt.scatter(x, y, c='b', s=1)
         # plt.scatter(mean_x, mean_y, c='b', edgecolors='black')
         
-        _6wk_kde_centroid[ptnt_count,0] = mean_x
-        _6wk_kde_centroid[ptnt_count,1] = mean_y
+        _6wk_kde_centroid[ptnt_count,0] = ang_FE_6WK.mean()
+        _6wk_kde_centroid[ptnt_count,1] = ang_LB_6WK.mean()
         
         # Get perimiter of outer region for 6WK POST OP    
         _6wk_kde_prob_area = 0
@@ -259,8 +260,13 @@ if flag_plotConHull:
     plt.close()
 
 data_out = pd.DataFrame({'Patient_ID': ptnt_ID_list,\
-                         'BLN_cent_x': bln_kde_centroid[:,0], '6WK_cent_x': _6wk_kde_centroid[:,0], 'D_cent_x': _6wk_kde_centroid[:,0] - bln_kde_centroid[:,0], \
-                          'BLN_cent_y': bln_kde_centroid[:,1], '6WK_cent_y': _6wk_kde_centroid[:,1], 'D_cent_y': _6wk_kde_centroid[:,1] - bln_kde_centroid[:,1],\
-                             'BLN_area': bln_kde_area[:,0], '6WK_area': _6wk_kde_area[:,0], 'D_area': _6wk_kde_area[:,0] - bln_kde_area[:,0]})
+                        'BLN_FE_mean': bln_kde_centroid[:,0], '6WK_FE_mean': _6wk_kde_centroid[:,0], 'D_FE_mean': _6wk_kde_centroid[:,0] - bln_kde_centroid[:,0], \
+                        'BLN_LB_mean': bln_kde_centroid[:,1], '6WK_LB_mean': _6wk_kde_centroid[:,1], 'D_LB_mean': _6wk_kde_centroid[:,1] - bln_kde_centroid[:,1], \
+                        'BLN_FE_min': bln_FE_range[:,0], 'BLN_FE_max': bln_FE_range[:,1], '6WK_FE_min': _6wk_FE_range[:,0], '6WK_FE_max': _6wk_FE_range[:,1], \
+                        'BLN_FE_range': bln_FE_range[:,1] - bln_FE_range[:,0], '6WK_FE_range': _6wk_FE_range[:,1] - _6wk_FE_range[:,0],\
+                        'BLN_LB_min': bln_LB_range[:,0], 'BLN_LB_max': bln_LB_range[:,1], '6WK_FE_min': _6wk_LB_range[:,0], '6WK_FE_max': _6wk_LB_range[:,1], \
+                        'BLN_LB_range': bln_LB_range[:,1] - bln_LB_range[:,0], '6WK_LB_range': _6wk_LB_range[:,1] - _6wk_LB_range[:,0],\
+                        'BLN_area': bln_kde_area[:,0], '6WK_area': _6wk_kde_area[:,0], 'D_area': _6wk_kde_area[:,0] - bln_kde_area[:,0]})
+
 data_out.to_csv(data_path_out + 'T8_cent_area_KDE.csv')
 print("--- Analysis complete ---")
